@@ -14,6 +14,12 @@
   <img src="https://img.shields.io/badge/purpose-learning%20only-lightgrey" alt="Learning only">
 </p>
 
+<p align="center">
+  <a href="https://colab.research.google.com/github/raiyanyahya/how-to-train-your-gpt/blob/master/notebooks/colab_train.ipynb">
+    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" height="25">
+  </a>
+</p>
+
 ---
 
 ## 📖 What Is This?
@@ -124,6 +130,9 @@ source gpt_env/bin/activate          # Mac/Linux
 
 # 3. Install dependencies (CPU version. For GPU see below)
 pip install torch tiktoken datasets numpy matplotlib --index-url https://download.pytorch.org/whl/cpu
+
+# Or use the requirements file
+pip install -r requirements.txt
 
 # 4. Verify GPU (optional but recommended)
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
@@ -253,6 +262,7 @@ Each chapter follows the same **4-step structure**:
 📦 how-to-train-your-gpt/
 ├── 📄 README.md              ← You are here
 ├── 🐍 main.py                ← Runnable training script (clone & run)
+├── 📋 requirements.txt       ← One command install
 ├── 📂 chapters/
 │   ├── 🏠 00_overview.md     ← What is a GPT? Why build one?
 │   ├── 🔧 01_setup.md        ← Install tools, GPU vs CPU, venv basics
@@ -267,7 +277,9 @@ Each chapter follows the same **4-step structure**:
 │   ├── 📜 10_full_script.md  ← About main.py
 │   └── 📊 11_glossary.md     ← Architecture provenance, parameter breakdown
 ├── 📓 notebooks/             ← Jupyter notebooks (one per chapter)
-├── 📚 explanations and examples WIP/ ← Standalone explainers (15 topics)
+│   ├── 🎨 attention_visualized.ipynb ← Watch attention weights in action
+│   └── ☁️ colab_train.ipynb  ← One-click cloud training on Colab
+├── 📚 explanations and examples WIP/ ← Standalone explainers (18 topics)
 └── 📄 CONTRIBUTING.md
 ```
 
