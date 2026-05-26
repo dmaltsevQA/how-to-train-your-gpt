@@ -1,25 +1,25 @@
-# Chapter 5 — Attention: The Secret Sauce
+# Глава 5 — Attention: Секретный ингредиент
 
-> *Attention is not just a part of the Transformer. Attention IS the Transformer.*
+> *Attention — это не просто часть Transformer. Attention — это и есть Transformer.*
 
-## The 5-Year-Old Analogy
+## Аналогия для пятилетнего ребёнка
 
-You walk into a crowded party. You want to understand what's happening. You don't listen to **everyone equally**. You pay **more attention** to:
+Вы заходите на многолюдную вечеринку. Вы хотите понять, что происходит. Вы не слушаете **всех одинаково**. Вы уделяете **больше внимания**:
 
-- The person you're talking to (high relevance)
-- The person shouting loudly (high importance)
-- The conversation about your favorite topic (high match with your interests)
+- Человеку, с которым разговариваете (высокая релевантность)
+- Человеку, который громко кричит (высокая важность)
+- Разговору о вашей любимой теме (высокое соответствие вашим интересам)
 
-**Attention is the model's ability to look at ALL words and decide: "How much should I care about this word RIGHT NOW?"**
+**Attention — это способность модели смотреть на ВСЕ слова и решать: «Насколько сильно мне важно это слово ПРЯМО СЕЙЧАС?»**
 
 ```mermaid
 graph TD
-    subgraph "Reading: 'The cat chased the mouse because it was hungry'"
-        Q["Query: Who is 'it'?"]
-        Q -->|"🔥 HIGH attention (0.72)"| C["cat"]
-        Q -->|"🤔 MEDIUM attention (0.21)"| M["mouse"]
-        Q -->|"🥶 LOW attention (0.04)"| T["the"]
-        Q -->|"🥶 LOW attention (0.03)"| C2["chased"]
+    subgraph "Чтение: 'The cat chased the mouse because it was hungry'"
+        Q["Query: Кто 'it'?"]
+        Q -->|"🔥 ВЫСОКОЕ внимание (0.72)"| C["cat"]
+        Q -->|"🤔 СРЕДНЕЕ внимание (0.21)"| M["mouse"]
+        Q -->|"🥶 НИЗКОЕ внимание (0.04)"| T["the"]
+        Q -->|"🥶 НИЗКОЕ внимание (0.03)"| C2["chased"]
     end
     style Q fill:#f9a825,stroke:#f57f17,color:#000000
     style C fill:#2e7d32,stroke:#1b5e20,color:#ffffff
@@ -28,56 +28,56 @@ graph TD
 
 ---
 
-## Part 1: Self-Attention — The Core Idea
+## Часть 1: Self-Attention — Основная идея
 
-### The Problem It Solves
+### Проблема, которую это решает
 
-Consider this sentence: **"The cat sat on the mat because it was warm."**
+Рассмотрим предложение: **"The cat sat on the mat because it was warm."**
 
-What does **"it"** refer to? The cat? The mat? A human instantly knows "it" = "mat" (because mats are warm, cats are warm-blooded). But how does a computer figure this out?
+К чему относится **"it"**? К коту? К коврику? Человек мгновенно понимает: "it" = "mat" (потому что коврики бывают тёплыми, а коты — теплокровные). Но как компьютер может это определить?
 
-**Before attention (RNNs, LSTMs):** Words were processed one at a time, left to right. By the time the model reached "it", the word "mat" was far in the past — its information had faded.
+**До attention (RNN, LSTM):** Слова обрабатывались по одному, слева направо. К моменту, когда модель доходила до "it", слово "mat" было уже далеко в прошлом — его информация затухла.
 
-**With attention:** The model can look back at ALL previous words simultaneously and decide: "mat" matches "it" best because "warm" is often associated with surfaces/objects.
+**С attention:** Модель может одновременно посмотреть на ВСЕ предыдущие слова и решить: "mat" лучше всего соответствует "it", потому что "warm" часто ассоциируется с поверхностями/объектами.
 
-### What Self-Attention Computes
+### Что вычисляет Self-Attention
 
-For every word in a sequence, self-attention creates a **new representation** of that word that is a **weighted mixture of all words in the sequence**:
+Для каждого слова в последовательности self-attention создаёт **новое представление** этого слова, которое является **взвешенной смесью всех слов в последовательности**:
 
 ```
 New("it") = 0.72 × cat + 0.21 × mouse + 0.04 × the + 0.03 × chased
 ```
 
-The weights (0.72, 0.21, 0.04, 0.03) are the **attention scores** — they tell us how much each word matters.
+Веса (0.72, 0.21, 0.04, 0.03) — это **оценки attention** — они показывают, насколько важно каждое слово.
 
 ---
 
-## Part 2: The Math — From Words to Attention Scores
+## Часть 2: Математика — От слов к оценкам Attention
 
-### Step-by-Step Worked Example
+### Пошаговый рабочий пример
 
-Let's trace through attention with **real (simplified) numbers**. We'll use a tiny model with `d_model=4` and `num_heads=2` for clarity.
+Давайте проследим работу attention на **реальных (упрощённых) числах**. Для ясности используем крошечную модель с `d_model=4` и `num_heads=2`.
 
-**Input:** The sentence `"I love dogs"` after tokenization and embedding:
+**Вход:** Предложение `"I love dogs"` после токенизации и эмбеддинга:
 ```
 Token 0 ("I"):    [0.5,  0.2, -0.3,  0.8]
 Token 1 ("love"): [0.1, -0.5,  0.7, -0.2]
 Token 2 ("dogs"): [0.9,  0.3, -0.1, -0.5]
 ```
 
-### Step 1: Create Q, K, V from the input
+### Шаг 1: Создание Q, K, V из входа
 
-Each token's embedding is multiplied by three weight matrices to produce Query, Key, and Value vectors:
+Эмбеддинг каждого токена умножается на три весовые матрицы, создавая векторы Query, Key и Value:
 
 ```
-Q = x × W_q    (Query: "What am I looking for?")
-K = x × W_k    (Key:   "What do I have to offer?")
-V = x × W_v    (Value: "My actual content/information")
+Q = x × W_q    (Query: «Что я ищу?»)
+K = x × W_k    (Key:   «Что я могу предложить?»)
+V = x × W_v    (Value: «Моё фактическое содержание/информация»)
 ```
 
-These weight matrices `W_q, W_k, W_v` are **learned during training**. Initially random, they gradually learn to project tokens into useful Q/K/V spaces.
+Эти весовые матрицы `W_q, W_k, W_v` **изучаются во время обучения**. Изначально случайные, они постепенно учатся проецировать токены в полезные пространства Q/K/V.
 
-For our tiny example, let's say after projection (with `head_dim=2`):
+Для нашего крошечного примера, скажем, после проекции (с `head_dim=2`):
 
 ```
 Token │ Query (Q)    │ Key (K)      │ Value (V)
@@ -87,17 +87,17 @@ Token │ Query (Q)    │ Key (K)      │ Value (V)
  2:"dogs"│ [ 0.5, -0.4] │ [-0.4,  0.8] │ [ 0.7, -0.1]
 ```
 
-### Step 2: Compute Attention Scores
+### Шаг 2: Вычисление оценок Attention
 
-The attention score between token `i` (query) and token `j` (key) is the **dot product**:
+Оценка attention между токеном `i` (query) и токеном `j` (key) — это **скалярное произведение**:
 
 ```
 score(i→j) = Q_i · K_j
 ```
 
-This measures how well token `i`'s query matches token `j`'s key. High dot product = high relevance.
+Это показывает, насколько хорошо query токена `i` совпадает с key токена `j`. Высокое скалярное произведение = высокая релевантность.
 
-**Computing scores for token 2 ("dogs") looking at all tokens:**
+**Вычисляем оценки для токена 2 ("dogs"), смотрящего на все токены:**
 
 ```
 score("dogs"→"I")    = Q₂ · K₀ = [0.5, -0.4] · [ 0.6, -0.3] = 0.30 + 0.12 = 0.42
@@ -105,50 +105,50 @@ score("dogs"→"love") = Q₂ · K₁ = [0.5, -0.4] · [ 0.1,  0.5] = 0.05 - 0.2
 score("dogs"→"dogs") = Q₂ · K₂ = [0.5, -0.4] · [-0.4,  0.8] = -0.20 - 0.32 = -0.52
 ```
 
-### Step 3: Scale the scores
+### Шаг 3: Масштабирование оценок
 
-Divide by `sqrt(head_dim)` = `sqrt(2)` ≈ 1.414:
-
-```
-Why? If d_k is large, dot products become large numbers.
-Large numbers → softmax becomes very "peaky" (one value near 1.0,
-rest near 0.0) → gradients vanish → model stops learning.
-
-Scaling keeps the variance at 1.0 regardless of d_k.
-```
+Делим на `sqrt(head_dim)` = `sqrt(2)` ≈ 1.414:
 
 ```
-Scaled scores: [0.42/1.414, -0.15/1.414, -0.52/1.414] = [0.297, -0.106, -0.368]
+Зачем? Если d_k велико, скалярные произведения становятся большими числами.
+Большие числа → softmax становится очень «пикообразным» (одно значение около 1.0,
+остальные около 0.0) → градиенты затухают → модель перестаёт учиться.
+
+Масштабирование сохраняет дисперсию на уровне 1.0 независимо от d_k.
 ```
 
-### Step 4: Apply Causal Mask (training only)
-
-During training, token at position `i` cannot see tokens at positions `> i`. This means:
-
 ```
-For token 0 ("I"):    can only see position 0
-For token 1 ("love"): can only see positions 0, 1
-For token 2 ("dogs"): can only see positions 0, 1, 2
+Масштабированные оценки: [0.42/1.414, -0.15/1.414, -0.52/1.414] = [0.297, -0.106, -0.368]
 ```
 
-Future positions are set to `-infinity` (so their softmax becomes 0).
+### Шаг 4: Применение каузальной маски (только при обучении)
 
-### Step 5: Softmax → Attention Weights
+Во время обучения токен на позиции `i` не может видеть токены на позициях `> i`. Это означает:
 
-Convert scores to probabilities that sum to 1:
+```
+Для токена 0 ("I"):    может видеть только позицию 0
+Для токена 1 ("love"): может видеть только позиции 0, 1
+Для токена 2 ("dogs"): может видеть только позиции 0, 1, 2
+```
+
+Будущие позиции устанавливаются в `-infinity` (чтобы их softmax стал 0).
+
+### Шаг 5: Softmax → Веса Attention
+
+Преобразуем оценки в вероятности, суммирующиеся в 1:
 
 ```
 softmax([0.297, -0.106, -0.368]) = [0.53, 0.35, 0.12]
 ```
 
-**Interpretation:** When processing "dogs", the model pays:
-- 53% attention to "I"
-- 35% attention to "love"
-- 12% attention to "dogs" (itself)
+**Интерпретация:** При обработке "dogs" модель уделяет:
+- 53% внимания "I"
+- 35% внимания "love"
+- 12% внимания "dogs" (самому себе)
 
-### Step 6: Weighted Sum of Values
+### Шаг 6: Взвешенная сумма Value
 
-Multiply each token's value vector by its attention weight and sum:
+Умножаем вектор value каждого токена на его вес attention и суммируем:
 
 ```
 New("dogs") = 0.53 × V("I") + 0.35 × V("love") + 0.12 × V("dogs")
@@ -158,206 +158,206 @@ New("dogs") = 0.53 × V("I") + 0.35 × V("love") + 0.12 × V("dogs")
             = [0.191, 0.535]
 ```
 
-**This new vector [0.191, 0.535] is the "context-aware" representation of "dogs"** — it now contains information from "I" and "love", weighted by relevance.
+**Этот новый вектор [0.191, 0.535] — это «контекстно-зависимое» представление "dogs"** — теперь оно содержит информацию от "I" и "love", взвешенную по релевантности.
 
-### The Full Attention Matrix
+### Полная матрица Attention
 
-For our 3-token sequence, the complete attention weight matrix:
+Для нашей последовательности из 3 токенов полная матрица весов attention:
 
 ```
-         │ "I"    "love"  "dogs"  ← (keys: "what I offer")
+         │ "I"    "love"  "dogs"  ← (keys: «что я предлагаю»)
 ─────────┼──────────────────────
-"I"      │ 1.00   0.00    0.00    ← "I" can only see itself (causal)
-"love"   │ 0.45   0.55    0.00    ← "love" sees "I" and itself
-"dogs"   │ 0.53   0.35    0.12    ← "dogs" sees all three
+"I"      │ 1.00   0.00    0.00    ← "I" видит только себя (каузальность)
+"love"   │ 0.45   0.55    0.00    ← "love" видит "I" и себя
+"dogs"   │ 0.53   0.35    0.12    ← "dogs" видит все три
     ↑
-(queries: "what I'm looking for")
+(queries: «что я ищу»)
 ```
 
-This is the **causal attention pattern** — a lower-triangular matrix where each row sums to 1.0. Every token builds its representation from itself and all tokens before it.
+Это **каузальная структура attention** — нижнетреугольная матрица, где каждая строка суммируется в 1.0. Каждый токен строит своё представление из себя и всех предыдущих токенов.
 
 ---
 
-## Part 3: Multi-Head Attention — Why Multiple Heads?
+## Часть 3: Multi-Head Attention — Зачем несколько голов?
 
-### The Limitation of a Single Head
+### Ограничение одной головы
 
-With one attention head, the model averages ALL relationships into one representation. But language has many simultaneous relationships:
+С одной головой внимания модель усредняет ВСЕ отношения в одно представление. Но в языке много одновременных отношений:
 
 ```
 "The teacher gave the student a book because she was proud of him."
 
-Q: Who is "she"?  → teacher (gender agreement)
-Q: Who is "him"?   → student (gender agreement)
-Q: Who gave what?   → teacher → student → book (syntactic roles)
+В: Кто "she"?  → teacher (согласование по роду)
+В: Кто "him"?   → student (согласование по роду)
+В: Кто что дал?   → teacher → student → book (синтаксические роли)
 ```
 
-A single head must compress all three answers into one vector — messy, lossy, confused.
+Одна голова должна сжать все три ответа в один вектор — беспорядочно, с потерями, путаницей.
 
-### Multi-Head: Divide and Conquer
+### Multi-Head: Разделяй и властвуй
 
-Instead, we run attention **multiple times in parallel**, each with its own `W_q, W_k, W_v`:
+Вместо этого мы запускаем attention **несколько раз параллельно**, каждый со своими `W_q, W_k, W_v`:
 
 ```
-Head 1 learns: subject-verb relationships → "teacher" ↔ "gave"
-Head 2 learns: pronoun resolution        → "she" ↔ "teacher"
-Head 3 learns: object relationships      → "student" ↔ "book"
-Head 4 learns: adjective-noun patterns   → "proud" ↔ "teacher"
+Голова 1 изучает: связи подлежащее-глагол → "teacher" ↔ "gave"
+Голова 2 изучает: разрешение местоимений  → "she" ↔ "teacher"
+Голова 3 изучает: отношения объектов     → "student" ↔ "book"
+Голова 4 изучает: шаблоны прил-сущ       → "proud" ↔ "teacher"
 ...
-Head 12: positional patterns, punctuation, etc.
+Голова 12: позиционные шаблоны, пунктуация и т.д.
 ```
 
-Each head has dimension `d_model / num_heads`. For GPT-2 small: `768 / 12 = 64` dimensions per head.
+Каждая голова имеет размерность `d_model / num_heads`. Для GPT-2 small: `768 / 12 = 64` измерения на голову.
 
 ```mermaid
 graph TD
-    subgraph "Single Input: 'The teacher gave the student a book'"
-        X["Embedding: [768-dim vector]"]
+    subgraph "Единый вход: 'The teacher gave the student a book'"
+        X["Embedding: [768-мерный вектор]"]
     end
 
-    subgraph "12 Parallel Attention Heads"
-        X --> H1["Head 1 (64-dim)<br/>Learns: subject-verb"]
-        X --> H2["Head 2 (64-dim)<br/>Learns: pronoun resolution"]
-        X --> H3["Head 3 (64-dim)<br/>Learns: object relations"]
+    subgraph "12 параллельных голов Attention"
+        X --> H1["Голова 1 (64-мер)<br/>Изучает: подлежащее-глагол"]
+        X --> H2["Голова 2 (64-мер)<br/>Изучает: разрешение местоимений"]
+        X --> H3["Голова 3 (64-мер)<br/>Изучает: отношения объектов"]
         X --> H4["..."]
-        X --> H12["Head 12 (64-dim)<br/>Learns: positional/local"]
+        X --> H12["Голова 12 (64-мер)<br/>Изучает: позиционные/локальные"]
     end
 
-    H1 --> C["Concatenate<br/>12 × 64 = 768"]
+    H1 --> C["Конкатенация<br/>12 × 64 = 768"]
     H2 --> C
     H3 --> C
     H4 --> C
     H12 --> C
 
-    C --> O["Output Projection<br/>Mix across heads"]
-    O --> OUT["Final: [768-dim]"]
+    C --> O["Выходная проекция<br/>Смешивание между головами"]
+    O --> OUT["Итог: [768-мерный]"]
 ```
 
-### What Heads Actually Learn (from research)
+### Что на самом деле изучают головы (из исследований)
 
-Analyzing trained GPT-2 models reveals head specializations:
+Анализ обученных моделей GPT-2 выявляет специализацию голов:
 
-- **Early layers (1-3):** Local syntax — adjacent words, punctuation, basic grammar
-- **Middle layers (4-8):** Semantic relationships — subject-verb, object relations, entity tracking
-- **Late layers (9-12):** High-level patterns — topic coherence, negation scope, anaphora resolution
+- **Ранние слои (1-3):** Локальный синтаксис — соседние слова, пунктуация, базовая грамматика
+- **Средние слои (4-8):** Семантические отношения — подлежащее-глагол, отношения объектов, отслеживание сущностей
+- **Поздние слои (9-12):** Высокоуровневые шаблоны — связность темы, область отрицания, разрешение анафоры
 
-Some heads become highly specialized:
-- "Duplicate token heads": Copy the previous token (useful for repetition)
-- "Inhibition heads": Actively suppress attention to certain tokens
-- "Position heads": Attend purely by distance (word N positions away)
+Некоторые головы становятся узкоспециализированными:
+- «Головы дублирования токенов»: Копируют предыдущий токен (полезно для повторений)
+- «Головы подавления»: Активно подавляют внимание к определённым токенам
+- «Позиционные головы»: Обращают внимание чисто по расстоянию (слово N позиций назад)
 
 ---
 
-## Part 4: The Scaling Factor — A Critical Detail
+## Часть 4: Коэффициент масштабирования — Критическая деталь
 
-### Why `1/sqrt(d_k)`?
+### Зачем `1/sqrt(d_k)`?
 
-The attention formula is:
+Формула attention:
 
 ```
 Attention(Q, K, V) = softmax(QK^T / √d_k) × V
 ```
 
-But why divide by `√d_k`? Let's trace the math:
+Но зачем делить на `√d_k`? Давайте проследим математику:
 
-**Without scaling:** Each element of `QK^T` is a dot product of two vectors of length `d_k`. If each element of Q and K has mean 0 and variance 1, then:
-
-```
-Var(dot product) = d_k
-```
-
-So with `d_k = 64`, the dot products have variance 64. Standard deviation = 8. This means typical dot products range from about -24 to +24.
-
-**Problem:** When numbers are this large, `softmax` becomes extremely peaked — one value approaches 1.0, and all others approach 0.0. The gradient of softmax is near zero everywhere, so the model stops learning.
-
-**With scaling:** After dividing by `√64 = 8`, the variance becomes 1.0. Dot products range from about -3 to +3. Softmax produces a smoother distribution, and gradients flow properly.
+**Без масштабирования:** Каждый элемент `QK^T` — это скалярное произведение двух векторов длины `d_k`. Если каждый элемент Q и K имеет среднее 0 и дисперсию 1, то:
 
 ```
-Without scaling:  softmax([24, 8, -16]) = [0.99999988, 0.00000011, 0.00000000]  ← useless!
-With scaling:     softmax([3, 1, -2])   = [0.88, 0.12, 0.01]                    ← useful!
+Var(scalar product) = d_k
+```
+
+Таким образом, при `d_k = 64` скалярные произведения имеют дисперсию 64. Стандартное отклонение = 8. Это означает, что типичные скалярные произведения находятся в диапазоне от -24 до +24.
+
+**Проблема:** Когда числа такие большие, `softmax` становится чрезвычайно пикообразным — одно значение приближается к 1.0, а все остальные — к 0.0. Градиент softmax почти везде равен нулю, поэтому модель перестаёт учиться.
+
+**С масштабированием:** После деления на `√64 = 8` дисперсия становится 1.0. Скалярные произведения находятся в диапазоне от -3 до +3. Softmax даёт более гладкое распределение, и градиенты текут правильно.
+
+```
+Без масштабирования:  softmax([24, 8, -16]) = [0.99999988, 0.00000011, 0.00000000]  ← бесполезно!
+С масштабированием:   softmax([3, 1, -2])   = [0.88, 0.12, 0.01]                    ← полезно!
 ```
 
 ---
 
-## Part 5: Causal Masking — Don't Peek at the Future
+## Часть 5: Каузальное маскирование — Не подглядывать в будущее
 
-### The Problem
+### Проблема
 
-During training, we show the model: `"The cat sat on the mat"`
+Во время обучения мы показываем модели: `"The cat sat on the mat"`
 
-The model's job at position 3 (`"on"`) is to predict `"the"`. But if position 3 can attend to position 5 (`"mat"`), the model can **cheat** — it sees the answer before predicting!
+Задача модели на позиции 3 (`"on"`) — предсказать `"the"`. Но если позиция 3 может обращаться к позиции 5 (`"mat"`), модель может **смошенничать** — она видит ответ до предсказания!
 
-### The Solution: Lower Triangular Mask
+### Решение: Нижнетреугольная маска
 
 ```
          │ pos0  pos1  pos2  pos3  pos4
 ─────────┼─────────────────────────────
-pos0     │  ✓     ✗     ✗     ✗     ✗    "The" can only see itself
-pos1     │  ✓     ✓     ✗     ✗     ✗    "cat" sees "The" and itself
-pos2     │  ✓     ✓     ✓     ✗     ✗    "sat" sees first three
-pos3     │  ✓     ✓     ✓     ✓     ✗    "on"  sees first four
-pos4     │  ✓     ✓     ✓     ✓     ✓    "the" sees all five
+pos0     │  ✓     ✗     ✗     ✗     ✗    "The" видит только себя
+pos1     │  ✓     ✓     ✗     ✗     ✗    "cat" видит "The" и себя
+pos2     │  ✓     ✓     ✓     ✗     ✗    "sat" видит первые три
+pos3     │  ✓     ✓     ✓     ✓     ✗    "on"  видит первые четыре
+pos4     │  ✓     ✓     ✓     ✓     ✓    "the" видит все пять
 ```
 
-Implementation: set upper triangle to `-infinity` → after softmax, those positions become 0.0.
+Реализация: установить верхний треугольник в `-infinity` → после softmax эти позиции становятся 0.0.
 
 ```python
-# Before mask:
-attn_scores = [[0.3,  0.5,  0.2, -0.1, -0.4],  # row 0
-               [0.1,  0.4, -0.3,  0.6, -0.2],  # row 1
+# До маски:
+attn_scores = [[0.3,  0.5,  0.2, -0.1, -0.4],  # строка 0
+               [0.1,  0.4, -0.3,  0.6, -0.2],  # строка 1
                ...]
 
-# Apply mask (upper triangle = -inf):
-attn_scores = [[0.3, -inf, -inf, -inf, -inf],  # row 0: only sees pos 0
-               [0.1,  0.4, -inf, -inf, -inf],  # row 1: sees 0,1
-               [0.5, -0.2,  0.3, -inf, -inf],  # row 2: sees 0,1,2
+# Применяем маску (верхний треугольник = -inf):
+attn_scores = [[0.3, -inf, -inf, -inf, -inf],  # строка 0: видит только поз. 0
+               [0.1,  0.4, -inf, -inf, -inf],  # строка 1: видит 0,1
+               [0.5, -0.2,  0.3, -inf, -inf],  # строка 2: видит 0,1,2
                ...]
 
-# After softmax:
-attn_weights = [[1.0,  0.0,  0.0,  0.0,  0.0],  # row 0: all weight on itself
-                [0.43, 0.57, 0.0,  0.0,  0.0],  # row 1: split between 0,1
-                [0.42, 0.21, 0.37, 0.0,  0.0],  # row 2: weighted mixture
+# После softmax:
+attn_weights = [[1.0,  0.0,  0.0,  0.0,  0.0],  # строка 0: весь вес на себе
+                [0.43, 0.57, 0.0,  0.0,  0.0],  # строка 1: разделён между 0,1
+                [0.42, 0.21, 0.37, 0.0,  0.0],  # строка 2: взвешенная смесь
                 ...]
 ```
 
-### At Inference Time
+### Во время инференса
 
-During text generation, causal masking is **implicitly maintained** — we generate tokens one at a time, so future tokens simply don't exist yet. The current token can only attend to previously generated tokens.
-
----
-
-## Part 6: Computational Complexity — The O(n²) Problem
-
-### Why Long Context Is Hard
-
-Attention computes `Q @ K^T`, producing a `[seq_len × seq_len]` matrix:
-
-| Sequence Length | Attention Matrix Size | Memory (float32) |
-|---|---|---|
-| 1,024 (GPT-2) | 1,024 × 1,024 | 4 MB |
-| 2,048 (GPT-3) | 2,048 × 2,048 | 16 MB |
-| 8,192 (LLaMA 2) | 8,192 × 8,192 | 256 MB |
-| 32,768 (GPT-4 Turbo) | 32,768 × 32,768 | 4 GB |
-| 128,000 (Claude 3) | 128K × 128K | 64 GB |
-| 1,000,000 (Gemini) | 1M × 1M | 4 TB |
-
-This quadratic growth is the **fundamental bottleneck** of Transformer models.
-
-### Solutions
-
-| Method | How It Works | Speedup |
-|---|---|---|
-| **Flash Attention** | Optimize memory access patterns, fuse kernels | 2-4x |
-| **Sparse Attention** | Attend to only √n tokens (local + global) | 10-100x |
-| **Sliding Window** | Attend only to last W tokens (Mistral) | Linear O(n) |
-| **Ring Attention** | Split sequence across GPUs in a ring | Scales with GPUs |
-| **Mamba/SSMs** | Replace attention entirely with state space models | Linear O(n) |
-
-Most modern LLMs use **Flash Attention** (Dao et al., 2022) which doesn't change the math — it just makes the computation and memory access vastly more efficient through kernel fusion and tiling.
+При генерации текста каузальное маскирование **поддерживается неявно** — мы генерируем токены по одному, поэтому будущих токенов просто ещё не существует. Текущий токен может обращаться только к ранее сгенерированным токенам.
 
 ---
 
-## Part 7: Full Multi-Head Attention Code
+## Часть 6: Вычислительная сложность — Проблема O(n²)
+
+### Почему длинный контекст — это сложно
+
+Attention вычисляет `Q @ K^T`, создавая матрицу размера `[seq_len × seq_len]`:
+
+| Длина последовательности | Размер матрицы Attention | Память (float32) |
+|---|---|---|
+| 1,024 (GPT-2) | 1,024 × 1,024 | 4 МБ |
+| 2,048 (GPT-3) | 2,048 × 2,048 | 16 МБ |
+| 8,192 (LLaMA 2) | 8,192 × 8,192 | 256 МБ |
+| 32,768 (GPT-4 Turbo) | 32,768 × 32,768 | 4 ГБ |
+| 128,000 (Claude 3) | 128K × 128K | 64 ГБ |
+| 1,000,000 (Gemini) | 1M × 1M | 4 ТБ |
+
+Этот квадратичный рост — **фундаментальное узкое место** моделей Transformer.
+
+### Решения
+
+| Метод | Как работает | Ускорение |
+|---|---|---|
+| **Flash Attention** | Оптимизация паттернов доступа к памяти, слияние ядер | 2-4x |
+| **Sparse Attention** | Обращение только к √n токенам (локальные + глобальные) | 10-100x |
+| **Sliding Window** | Обращение только к последним W токенам (Mistral) | Линейное O(n) |
+| **Ring Attention** | Разделение последовательности между GPU в кольце | Масштабируется с GPU |
+| **Mamba/SSMs** | Полная замена attention моделями пространства состояний | Линейное O(n) |
+
+Большинство современных LLM используют **Flash Attention** (Dao et al., 2022), который не меняет математику — он просто делает вычисления и доступ к памяти гораздо более эффективными через слияние ядер и тайлинг.
+
+---
+
+## Часть 7: Полный код Multi-Head Attention
 
 ```python
 import torch
@@ -368,235 +368,235 @@ import math
 
 class MultiHeadAttention(nn.Module):
     """
-    WHAT: Multi-Head Self-Attention with RoPE and causal masking.
+    ЧТО: Multi-Head Self-Attention с RoPE и каузальным маскированием.
 
-    WHY: Transformers would be useless without attention. This is the
-         mechanism that lets each token "look at" every other token and
-         decide how much each matters for understanding the current context.
+    ЗАЧЕМ: Transformers были бы бесполезны без attention. Это механизм,
+         который позволяет каждому токену «смотреть» на каждый другой токен
+         и решать, насколько каждый важен для понимания текущего контекста.
 
-         Each attention head:
-         1. Projects input into Query, Key, Value spaces
-         2. Computes Q·K^T / sqrt(d_k) → how well each query matches each key
-         3. Applies causal mask → no peeking at future tokens
-         4. Softmax → converts scores to a probability distribution
-         5. Weighted sum of Values → builds context-aware representation
+         Каждая голова attention:
+         1. Проецирует вход в пространства Query, Key, Value
+         2. Вычисляет Q·K^T / sqrt(d_k) → насколько хорошо каждый query совпадает с каждым key
+         3. Применяет каузальную маску → не подглядывать в будущее
+         4. Softmax → преобразует оценки в распределение вероятностей
+         5. Взвешенная сумма Values → строит контекстно-зависимое представление
 
-         Doing this with multiple heads in parallel lets each head
-         specialize in different linguistic patterns.
+         Параллельное выполнение этого с несколькими головами позволяет каждой голове
+         специализироваться на разных лингвистических шаблонах.
     """
 
     def __init__(self, d_model: int, num_heads: int, dropout: float = 0.1):
         """
-        Args:
-            d_model:   Total embedding dimension (e.g., 768 for GPT-2 small)
-            num_heads: Number of parallel attention heads (e.g., 12)
-            dropout:   Probability of randomly zeroing attention weights
+        Аргументы:
+            d_model:   Общая размерность эмбеддинга (например, 768 для GPT-2 small)
+            num_heads: Количество параллельных голов attention (например, 12)
+            dropout:   Вероятность случайного обнуления весов attention
 
-        WHY: d_model must be divisible by num_heads because each head
-             operates on d_model/num_heads dimensions (64 for GPT-2 small).
-             This split-then-concat strategy lets heads specialize while
-             keeping total parameter count the same as a single large head.
+        ЗАЧЕМ: d_model должно делиться на num_heads, потому что каждая голова
+             работает с d_model/num_heads измерениями (64 для GPT-2 small).
+             Эта стратегия разделения-и-конкатенации позволяет головам специализироваться,
+             сохраняя общее количество параметров таким же, как у одной большой головы.
         """
         super().__init__()
 
-        # WHAT: Validate that heads evenly divide the model dimension
+        # ЧТО: Проверка, что головы равномерно делят размерность модели
         assert d_model % num_heads == 0, (
-            f"d_model ({d_model}) must be divisible by num_heads ({num_heads}). "
-            f"This ensures each head has equal dimension."
+            f"d_model ({d_model}) должно делиться на num_heads ({num_heads}). "
+            f"Это гарантирует, что каждая голова имеет одинаковую размерность."
         )
 
         self.d_model = d_model
         self.num_heads = num_heads
-        self.head_dim = d_model // num_heads  # 768/12 = 64 dimensions per head
-                                               # WHY: 64 is the "sweet spot" —
-                                               # enough to capture meaning,
-                                               # small enough for efficient compute
+        self.head_dim = d_model // num_heads  # 768/12 = 64 измерения на голову
+                                               # ЗАЧЕМ: 64 — это «золотая середина» —
+                                               # достаточно для захвата смысла,
+                                               # достаточно мало для эффективных вычислений
 
-        # ===== QKV Projection =====
-        # WHAT: One big linear layer that projects input to Q, K, V simultaneously
-        # WHY:  3 separate Linear(768→768) layers = 3 matrix multiplies.
-        #       One combined Linear(768→2304) = 1 bigger matrix multiply.
-        #       On GPU, 1 big operation is much faster than 3 small ones
-        #       due to better parallelism and fewer kernel launches.
-        #       Shape: [d_model, 3 * d_model] = [768, 2304]
+        # ===== Проекция QKV =====
+        # ЧТО: Один большой линейный слой, который одновременно проецирует вход в Q, K, V
+        # ЗАЧЕМ: 3 отдельных слоя Linear(768→768) = 3 умножения матриц.
+        #       Один комбинированный Linear(768→2304) = 1 большее умножение матрицы.
+        #       На GPU 1 большая операция намного быстрее, чем 3 маленькие,
+        #       благодаря лучшему параллелизму и меньшему количеству запусков ядер.
+        #       Форма: [d_model, 3 * d_model] = [768, 2304]
         self.qkv_proj = nn.Linear(d_model, 3 * d_model, bias=False)
 
-        # ===== Output Projection =====
-        # WHAT: Project concatenated head outputs back to d_model
-        # WHY:  After concatenation: [batch, seq, d_model] but each head's
-        #       output was computed independently. This linear layer MIXES
-        #       information across heads, letting them communicate.
-        #       Without it, heads would stay isolated — like 12 experts
-        #       who never talk to each other.
+        # ===== Выходная проекция =====
+        # ЧТО: Проекция конкатенированных выходов голов обратно в d_model
+        # ЗАЧЕМ: После конкатенации: [batch, seq, d_model], но выход каждой головы
+        #       вычислялся независимо. Этот линейный слой СМЕШИВАЕТ информацию
+        #       между головами, позволяя им общаться.
+        #       Без него головы оставались бы изолированными — как 12 экспертов,
+        #       которые никогда не разговаривают друг с другом.
         self.out_proj = nn.Linear(d_model, d_model, bias=False)
 
         # ===== RoPE (Rotary Position Embeddings) =====
-        # WHAT: Applies rotation-based position encoding to Q and K only
-        # WHY:  RoPE encodes position into the Q and K vectors so that
-        #       the dot product Q·K naturally depends on RELATIVE position.
-        #       We apply to the head_dim (not d_model) because each head
-        #       needs its own position info in its subspace.
-        #       V does NOT get RoPE because values carry content, not
-        #       position — position is only relevant for deciding
-        #       WHICH values to attend to, not the values themselves.
+        # ЧТО: Применяет позиционное кодирование на основе вращения только к Q и K
+        # ЗАЧЕМ: RoPE кодирует позицию в векторы Q и K так, чтобы скалярное
+        #       произведение Q·K естественным образом зависело от ОТНОСИТЕЛЬНОЙ позиции.
+        #       Применяем к head_dim (не d_model), потому что каждой голове нужна
+        #       своя информация о позиции в её подпространстве.
+        #       V НЕ получает RoPE, потому что values несут содержание, а не позицию —
+        #       позиция важна только для решения, КАКИЕ значения использовать,
+        #       а не сами значения.
         self.rotary = RotaryPositionalEmbedding(self.head_dim)
 
         # ===== Dropout =====
-        # WHAT: Randomly zero out attention weights during training
-        # WHY:  Without dropout, the model can become overconfident —
-        #       one token always dominates attention, ignoring other
-        #       potentially useful context. Dropout forces the model
-        #       to learn redundant attention patterns (backup plans).
-        self.attn_dropout = nn.Dropout(dropout)   # Applied to attention weights
-        self.resid_dropout = nn.Dropout(dropout)  # Applied to final output
+        # ЧТО: Случайное обнуление весов attention во время обучения
+        # ЗАЧЕМ: Без dropout модель может стать слишком уверенной —
+        #       один токен всегда доминирует в attention, игнорируя другой
+        #       потенциально полезный контекст. Dropout заставляет модель
+        #       изучать избыточные паттерны attention (резервные планы).
+        self.attn_dropout = nn.Dropout(dropout)   # Применяется к весам attention
+        self.resid_dropout = nn.Dropout(dropout)  # Применяется к финальному выходу
 
     def forward(self, x: torch.Tensor, mask: torch.Tensor = None) -> torch.Tensor:
         """
-        WHAT: Compute multi-head self-attention.
+        ЧТО: Вычисление multi-head self-attention.
 
-        Input:  x    [batch, seq_len, d_model]  — token embeddings
-                mask [batch, 1, seq, seq]       — causal mask (1=visible, 0=masked)
+        Вход:  x    [batch, seq_len, d_model]  — эмбеддинги токенов
+               mask [batch, 1, seq, seq]       — каузальная маска (1=видимо, 0=замаскировано)
 
-        Output:      [batch, seq_len, d_model]  — context-aware representations
+        Выход:     [batch, seq_len, d_model]  — контекстно-зависимые представления
 
-        The forward pass has 8 steps, each critical:
+        Forward pass состоит из 8 шагов, каждый критически важен:
         """
         batch_size, seq_len, _ = x.shape
 
-        # ===== STEP 1: Project input to Q, K, V — all at once =====
-        # WHAT: Linearly transform input into query, key, value spaces
-        # WHY:  Combined projection is faster on GPU than 3 separate ones.
-        #       After this: [batch, seq, 3*d_model] where the last dim
-        #       has Q values first, then K values, then V values.
+        # ===== ШАГ 1: Проекция входа в Q, K, V — всё сразу =====
+        # ЧТО: Линейное преобразование входа в пространства query, key, value
+        # ЗАЧЕМ: Комбинированная проекция быстрее на GPU, чем 3 отдельные.
+        #       После этого: [batch, seq, 3*d_model], где последнее измерение
+        #       содержит сначала Q, затем K, затем V.
         qkv = self.qkv_proj(x)               # [batch, seq, 3 * d_model]
 
-        # ===== STEP 2: Reshape to expose the head dimension =====
-        # WHAT: Split the 3*d_model into separate Q,K,V and separate heads
-        # WHY:  We need shape [batch, num_heads, seq, head_dim] for
-        #       parallel computation. The reshape + permute does this
-        #       in two efficient operations without data copies.
+        # ===== ШАГ 2: Reshape для выделения размерности головы =====
+        # ЧТО: Разделение 3*d_model на отдельные Q,K,V и отдельные головы
+        # ЗАЧЕМ: Нужна форма [batch, num_heads, seq, head_dim] для
+        #       параллельных вычислений. Reshape + permute делают это
+        #       за две эффективные операции без копирования данных.
         #
-        # Transform: [batch, seq, 3, heads, head_dim]
-        # Then permute: [3, batch, heads, seq, head_dim]
+        # Преобразование: [batch, seq, 3, heads, head_dim]
+        # Затем permute: [3, batch, heads, seq, head_dim]
         qkv = qkv.reshape(batch_size, seq_len, 3, self.num_heads, self.head_dim)
         qkv = qkv.permute(2, 0, 3, 1, 4)    # [3, batch, heads, seq, head_dim]
 
-        # WHAT: Unpack the three projections
-        q = qkv[0]  # Query:  [batch, heads, seq, head_dim] — "what I'm looking for"
-        k = qkv[1]  # Key:    [batch, heads, seq, head_dim] — "what I offer to match"
-        v = qkv[2]  # Value:  [batch, heads, seq, head_dim] — "my actual content"
+        # ЧТО: Распаковка трёх проекций
+        q = qkv[0]  # Query:  [batch, heads, seq, head_dim] — «что я ищу»
+        k = qkv[1]  # Key:    [batch, heads, seq, head_dim] — «что я предлагаю для совпадения»
+        v = qkv[2]  # Value:  [batch, heads, seq, head_dim] — «моё фактическое содержание»
 
-        # ===== STEP 3: Apply Rotary Position Embeddings =====
-        # WHAT: Rotate Q and K by position-dependent angles
-        # WHY:  After rotation, the dot product q_i · k_j depends on
-        #       cos(i-j) and sin(i-j) — the RELATIVE distance between
-        #       tokens i and j. This is what we want: attention should
-        #       care about "how far apart are these tokens?" not
-        #       "what are their absolute positions?"
+        # ===== ШАГ 3: Применение Rotary Position Embeddings =====
+        # ЧТО: Поворот Q и K на углы, зависящие от позиции
+        # ЗАЧЕМ: После поворота скалярное произведение q_i · k_j зависит от
+        #       cos(i-j) и sin(i-j) — ОТНОСИТЕЛЬНОГО расстояния между
+        #       токенами i и j. Это то, что нам нужно: attention должен
+        #       заботиться о «насколько далеко эти токены?» а не
+        #       «каковы их абсолютные позиции?»
         q = self.rotary(q, seq_len)
         k = self.rotary(k, seq_len)
 
-        # ===== STEP 4: Compute attention scores (Q · K^T) =====
-        # WHAT: For each query token, compute dot product with every key token
-        # WHY:  Dot product measures cosine similarity (if vectors normalized).
-        #       Higher dot product = query "wants" what key "offers".
+        # ===== ШАГ 4: Вычисление оценок attention (Q · K^T) =====
+        # ЧТО: Для каждого query токена вычислить скалярное произведение с каждым key токеном
+        # ЗАЧЕМ: Скалярное произведение измеряет косинусную схожесть (если векторы нормализованы).
+        #       Более высокое скалярное произведение = query «хочет» то, что key «предлагает».
         #
-        #       Shape: [batch, heads, query_seq, key_seq]
-        #       attn_scores[b, h, i, j] = how much token i attends to token j
+        #       Форма: [batch, heads, query_seq, key_seq]
+        #       attn_scores[b, h, i, j] = насколько токен i обращается к токену j
         #
-        #       DIVIDE BY sqrt(head_dim): critical for stable training.
-        #       Without this, the variance of dot products grows with d_k,
-        #       making softmax too "peaky" → gradients vanish → model dies.
-        #       See Part 4 above for the mathematical derivation.
+        #       ДЕЛЕНИЕ НА sqrt(head_dim): критично для стабильного обучения.
+        #       Без этого дисперсия скалярных произведений растёт с d_k,
+        #       делая softmax слишком «пикообразным» → градиенты затухают → модель умирает.
+        #       См. Часть 4 выше для математического вывода.
         attn_scores = (q @ k.transpose(-2, -1)) / math.sqrt(self.head_dim)
 
-        # ===== STEP 5: Apply causal mask — no peeking at future tokens =====
-        # WHAT: Set attention scores to future tokens to -infinity
-        # WHY:  During training, the model must predict token[i+1] from
-        #       tokens[0..i]. If token[i] can see token[i+1], it's like
-        #       seeing the answer before the question — cheating.
+        # ===== ШАГ 5: Применение каузальной маски — не подглядывать в будущее =====
+        # ЧТО: Установка оценок attention к будущим токенам в -infinity
+        # ЗАЧЕМ: Во время обучения модель должна предсказывать токен[i+1] из
+        #       токенов[0..i]. Если токен[i] может видеть токен[i+1], это как
+        #       увидеть ответ до вопроса — мошенничество.
         #
-        #       -infinity → e^(-inf) = 0.0 after softmax = zero attention
+        #       -infinity → e^(-inf) = 0.0 после softmax = нулевое внимание
         #
-        #       The mask is lower-triangular:
-        #       Token 0 → sees [0]        (itself only)
-        #       Token 1 → sees [0, 1]     (itself + previous)
-        #       Token 2 → sees [0, 1, 2]  (itself + all previous)
-        #       Token 3 → sees [0, 1, 2, 3]
+        #       Маска нижнетреугольная:
+        #       Токен 0 → видит [0]        (только себя)
+        #       Токен 1 → видит [0, 1]     (себя + предыдущий)
+        #       Токен 2 → видит [0, 1, 2]  (себя + все предыдущие)
+        #       Токен 3 → видит [0, 1, 2, 3]
         if mask is not None:
             attn_scores = attn_scores.masked_fill(mask == 0, float('-inf'))
 
-        # ===== STEP 6: Softmax — scores become attention weights =====
-        # WHAT: Convert raw scores to a probability distribution over keys
-        # WHY:  softmax(scores)[j] = e^score[j] / sum(e^score[k] for k in all keys)
-        #       This makes all weights:
-        #       - Positive (e^x > 0 always)
-        #       - Sum to 1.0 (proper probability distribution)
-        #       - Differentiable (we can compute gradients through it)
+        # ===== ШАГ 6: Softmax — оценки становятся весами attention =====
+        # ЧТО: Преобразование сырых оценок в распределение вероятностей по ключам
+        # ЗАЧЕМ: softmax(scores)[j] = e^score[j] / sum(e^score[k] for k in all keys)
+        #       Это делает все веса:
+        #       - Положительными (e^x > 0 всегда)
+        #       - Суммирующимися в 1.0 (правильное распределение вероятностей)
+        #       - Дифференцируемыми (мы можем вычислять градиенты через него)
         #
-        #       The softmax is applied over the LAST dimension (dim=-1),
-        #       which is the "key" dimension — so each query gets a
-        #       distribution over all keys it can see.
+        #       Softmax применяется по ПОСЛЕДНЕМУ измерению (dim=-1),
+        #       которое является измерением «key» — так каждый query получает
+        #       распределение по всем ключам, которые он может видеть.
         attn_weights = F.softmax(attn_scores, dim=-1)
         attn_weights = self.attn_dropout(attn_weights)
 
-        # ===== STEP 7: Weighted sum of values =====
-        # WHAT: Mix the value vectors according to attention weights
-        # WHY:  This is WHERE attention actually happens. Each query
-        #       token gets a NEW vector that is a weighted blend of
-        #       all visible value vectors.
+        # ===== ШАГ 7: Взвешенная сумма значений =====
+        # ЧТО: Смешивание векторов value согласно весам attention
+        # ЗАЧЕМ: Здесь происходит само внимание. Каждый query
+        #       токен получает НОВЫЙ вектор, который является взвешенной смесью
+        #       всех видимых векторов value.
         #
-        #       High attention to token j → V_j has large influence
-        #       Low attention to token j → V_j has small influence
+        #       Высокое внимание к токену j → V_j имеет большое влияние
+        #       Низкое внимание к токену j → V_j имеет малое влияние
         #
-        #       The result is "context-aware" — each token now "knows"
-        #       about the other relevant tokens in the sequence.
+        #       Результат «контекстно-зависимый» — каждый токен теперь «знает»
+        #       о других релевантных токенах в последовательности.
         #
         #       [batch, heads, seq, head_dim] @ [batch, heads, seq, head_dim]
         #       → [batch, heads, seq, head_dim]
         attn_output = attn_weights @ v
 
-        # ===== STEP 8: Merge heads and project =====
-        # WHAT: Combine all head outputs into one d_model vector per token
-        # WHY:  Currently: [batch, heads, seq, head_dim]
-        #       Need:       [batch, seq, d_model]
+        # ===== ШАГ 8: Слияние голов и проекция =====
+        # ЧТО: Объединение выходов всех голов в один вектор d_model на токен
+        # ЗАЧЕМ: Сейчас: [batch, heads, seq, head_dim]
+        #       Нужно:   [batch, seq, d_model]
         #
-        #       Transpose swaps heads and sequence:
+        #       Transpose меняет местами головы и последовательность:
         #       [batch, seq, heads, head_dim]
-        #       Reshape flattens heads×head_dim:
+        #       Reshape сплющивает heads×head_dim:
         #       [batch, seq, d_model]
         #
-        #       The final linear projection lets information flow between
-        #       heads — each head's discoveries can now influence the
-        #       combined representation.
+        #       Финальная линейная проекция позволяет информации течь между
+        #       головами — открытия каждой головы могут теперь влиять на
+        #       комбинированное представление.
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.reshape(batch_size, seq_len, self.d_model)
 
-        output = self.out_proj(attn_output)   # Mix across heads
-        output = self.resid_dropout(output)   # Regularization
+        output = self.out_proj(attn_output)   # Смешивание между головами
+        output = self.resid_dropout(output)   # Регуляризация
 
         return output
 
 
 def create_causal_mask(seq_len: int, device: torch.device) -> torch.Tensor:
     """
-    WHAT: Create a causal (lower triangular) attention mask.
-    WHY:  Prevents tokens from attending to future tokens during training.
+    ЧТО: Создание каузальной (нижнетреугольной) маски attention.
+    ЗАЧЕМ: Предотвращает обращение токенов к будущим токенам во время обучения.
 
-    Visual for seq_len=6:
-        [[✓, ✗, ✗, ✗, ✗, ✗],     Token 0 (first word)
-         [✓, ✓, ✗, ✗, ✗, ✗],     Token 1
-         [✓, ✓, ✓, ✗, ✗, ✗],     Token 2
-         [✓, ✓, ✓, ✓, ✗, ✗],     Token 3
-         [✓, ✓, ✓, ✓, ✓, ✗],     Token 4
-         [✓, ✓, ✓, ✓, ✓, ✓]]     Token 5 (last word — sees everything)
+    Визуально для seq_len=6:
+        [[✓, ✗, ✗, ✗, ✗, ✗],     Токен 0 (первое слово)
+         [✓, ✓, ✗, ✗, ✗, ✗],     Токен 1
+         [✓, ✓, ✓, ✗, ✗, ✗],     Токен 2
+         [✓, ✓, ✓, ✓, ✗, ✗],     Токен 3
+         [✓, ✓, ✓, ✓, ✓, ✗],     Токен 4
+         [✓, ✓, ✓, ✓, ✓, ✓]]     Токен 5 (последнее слово — видит всё)
 
-    ✓ = position is visible (1.0)
-    ✗ = position is masked (0.0, becomes -inf in attention)
+    ✓ = позиция видима (1.0)
+    ✗ = позиция замаскирована (0.0, становится -inf в attention)
 
-    Reshaped to [1, 1, seq_len, seq_len] for broadcasting over:
-    - batch dimension (all batches use same mask)
-    - head dimension (all heads use same mask — heads CAN'T see future)
+    Reshape к [1, 1, seq_len, seq_len] для broadcasting по:
+    - измерению batch (все батчи используют одну маску)
+    - измерению head (все головы используют одну маску — головы НЕ МОГУТ видеть будущее)
     """
     mask = torch.tril(torch.ones(seq_len, seq_len, device=device))
     return mask.view(1, 1, seq_len, seq_len)
@@ -604,11 +604,11 @@ def create_causal_mask(seq_len: int, device: torch.device) -> torch.Tensor:
 
 ---
 
-## Part 8: What the Model Actually "Sees"
+## Часть 8: Что модель на самом деле «видит»
 
-### Attention Heatmap
+### Тепловая карта Attention
 
-For the sentence **"The cat sat on the mat because it was comfortable"**, a trained model's attention might look like:
+Для предложения **\"The cat sat on the mat because it was comfortable\"**, внимание обученной модели может выглядеть так:
 
 ```
          The  cat  sat  on  the  mat  because  it  was  comfortable
@@ -623,61 +623,61 @@ it       ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ██
 was      ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ████      ████ ████ ░░░░
 comfort. ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░ ░░░░      ░░░░ ████ ████
                                          ↑
-                        "it" pays strong attention to "mat"
-                        (resolving the pronoun reference)
+                        "it" уделяет сильное внимание "mat"
+                        (разрешение местоименной ссылки)
 ```
 
-Notice two patterns:
-1. **Strong diagonal** — every word attends heavily to itself (you always need your own meaning)
-2. **Pronoun resolution** — "it" attends to "mat" (the model correctly identified the referent)
-3. **Causal structure** — bottom-left triangle only, upper-right is zero
+Заметны два паттерна:
+1. **Сильная диагональ** — каждое слово сильно обращается к самому себе (вам всегда нужен собственный смысл)
+2. **Разрешение местоимений** — "it" обращается к "mat" (модель правильно определила референт)
+3. **Каузальная структура** — только нижний левый треугольник, верхний правый равен нулю
 
 ---
 
-## Part 9: Attention Variants (Beyond What We Implement)
+## Часть 9: Варианты Attention (за пределами нашей реализации)
 
-| Variant | What It Does | Used By |
+| Вариант | Что делает | Используется в |
 |---|---|---|
-| **Self-Attention** | Q, K, V all from same input (this code) | All GPT models |
-| **Cross-Attention** | Q from decoder, K,V from encoder | Original Transformer, T5 |
-| **Grouped Query Attention** | Fewer KV heads than Q heads | LLaMA 2 70B, Mistral |
-| **Multi-Query Attention** | Single KV head shared across all Q heads | PaLM, Gemini |
-| **Flash Attention** | Fused CUDA kernels for O(n²) speedup | Most production LLMs |
-| **Sliding Window** | Attend only to last W tokens | Mistral 7B |
-| **Sparse Attention** | Combination of local + strided patterns | Longformer, BigBird |
+| **Self-Attention** | Q, K, V все из одного входа (этот код) | Все модели GPT |
+| **Cross-Attention** | Q из декодера, K,V из энкодера | Оригинальный Transformer, T5 |
+| **Grouped Query Attention** | Меньше KV голов, чем Q голов | LLaMA 2 70B, Mistral |
+| **Multi-Query Attention** | Одна KV голова для всех Q голов | PaLM, Gemini |
+| **Flash Attention** | Слитые CUDA ядра для ускорения O(n²) | Большинство продакшн LLM |
+| **Sliding Window** | Обращение только к последним W токенам | Mistral 7B |
+| **Sparse Attention** | Комбинация локальных + стридированных паттернов | Longformer, BigBird |
 
 ---
 
-## Attention Flow Diagram
+## Диаграмма потока Attention
 
 ```mermaid
 graph TD
-    subgraph Input
-        X["Input Embeddings<br/>batch x seq x 768"]
+    subgraph Вход
+        X["Входные эмбеддинги<br/>batch x seq x 768"]
     end
 
-    subgraph Projection
-        P["QKV Projection<br/>768 → 2304"]
-        S["Split into Heads<br/>Q,K,V each: batch x 12 x seq x 64"]
+    subgraph Проекция
+        P["QKV Проекция<br/>768 → 2304"]
+        S["Разделение на головы<br/>Q,K,V каждая: batch x 12 x seq x 64"]
     end
 
-    subgraph Position
-        R["Apply RoPE<br/>(rotate Q and K by position angle)"]
+    subgraph Позиция
+        R["Применение RoPE<br/>(поворот Q и K на угол позиции)"]
     end
 
-    subgraph Scoring
-        D["Q · K^T / sqrt(64)<br/>batch x 12 x seq x seq<br/>Each cell = relevance score"]
-        M["+ Causal Mask<br/>(upper triangle → -inf)"]
-        SM["Softmax<br/>(scores → probabilities)"]
+    subgraph Оценка
+        D["Q · K^T / sqrt(64)<br/>batch x 12 x seq x seq<br/>Каждая ячейка = оценка релевантности"]
+        M["+ Каузальная маска<br/>(верхний треугольник → -inf)"]
+        SM["Softmax<br/>(оценки → вероятности)"]
     end
 
-    subgraph Mixing
-        WV["Weighted Sum @ V<br/>batch x 12 x seq x 64"]
+    subgraph Смешивание
+        WV["Взвешенная сумма @ V<br/>batch x 12 x seq x 64"]
     end
 
-    subgraph Output
-        C["Concatenate Heads<br/>12 x 64 = 768"]
-        O["Output Projection<br/>768 → 768"]
+    subgraph Выход
+        C["Конкатенация голов<br/>12 x 64 = 768"]
+        O["Выходная проекция<br/>768 → 768"]
     end
 
     X --> P --> S --> R --> D --> M --> SM --> WV --> C --> O
@@ -690,24 +690,24 @@ graph TD
 
 ---
 
-## Summary: The Attention Checklist
+## Итог: Контрольный список Attention
 
-For each token at position `i`, attention:
+Для каждого токена на позиции `i` attention:
 
-- [x] Creates a **Query** ("what am I looking for?")
-- [x] Creates a **Key** for every token ("what do I offer?")
-- [x] Creates a **Value** for every token ("my actual content")
-- [x] Computes **Q_i · K_j** for all visible tokens j ≤ i
-- [x] Scales by **1/√d_k** (prevents gradient vanishing)
-- [x] Masks future tokens (j > i → -inf)
-- [x] Applies **softmax** (converts to probability distribution)
-- [x] Computes **weighted sum of Values** (context-aware representation)
-- [x] Does this **in parallel for multiple heads** (different linguistic patterns)
-- [x] Concatenates and projects heads back to **d_model**
-- [x] Adds **dropout** for regularization
-- [x] Returns output via **residual connection** (handled by TransformerBlock)
+- [x] Создаёт **Query** («что я ищу?»)
+- [x] Создаёт **Key** для каждого токена («что я предлагаю?»)
+- [x] Создаёт **Value** для каждого токена («моё фактическое содержание»)
+- [x] Вычисляет **Q_i · K_j** для всех видимых токенов j ≤ i
+- [x] Масштабирует на **1/√d_k** (предотвращает затухание градиентов)
+- [x] Маскирует будущие токены (j > i → -inf)
+- [x] Применяет **softmax** (преобразует в распределение вероятностей)
+- [x] Вычисляет **взвешенную сумму Values** (контекстно-зависимое представление)
+- [x] Делает это **параллельно для нескольких голов** (разные лингвистические паттерны)
+- [x] Конкатенирует и проецирует головы обратно в **d_model**
+- [x] Добавляет **dropout** для регуляризации
+- [x] Возвращает выход через **остаточное соединение** (обрабатывается TransformerBlock)
 
 ---
 
-**Previous:** [Chapter 4 — Positional Encoding](04_positional_encoding.md)
-**Next:** [Chapter 6 — Transformer Block](06_transformer_block.md)
+**Предыдущая:** [Глава 4 — Позиционное кодирование](04_positional_encoding.md)
+**Следующая:** [Глава 6 — Transformer Block](06_transformer_block.md)
