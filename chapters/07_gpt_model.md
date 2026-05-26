@@ -1,24 +1,24 @@
-# Chapter 7 — The Complete GPT Model
+# Глава 7 — Полная модель GPT
 
-## What We're Building
+## Что мы строим
 
-After 6 chapters of components, we now assemble them into a **complete language model**. This is essentially the same architecture as LLaMA 3, Mistral, and Qwen 2.5 — scaled down to fit on your GPU.
+После 6 глав с отдельными компонентами, мы теперь собираем их в **полную языковую модель**. Это по сути та же архитектура, что и у LLaMA 3, Mistral и Qwen 2.5 — уменьшенная версия, которая поместится на вашем GPU.
 
 ```mermaid
 graph TD
-    Input["Input: Token IDs<br/>[batch, seq]"] --> Emb["Token Embedding<br/>[batch, seq, d_model]"]
+    Input["Вход: ID токенов<br/>[batch, seq]"] --> Emb["Токен-эмбеддинг<br/>[batch, seq, d_model]"]
     Emb --> Drop["Dropout"]
-    Drop --> TB1["Transformer Block 1"]
-    TB1 --> TB2["Transformer Block 2"]
+    Drop --> TB1["Блок трансформера 1"]
+    TB1 --> TB2["Блок трансформера 2"]
     TB2 --> Dots["..."]
-    Dots --> TBN["Transformer Block N"]
-    TBN --> FN["Final RMSNorm"]
-    FN --> Head["LM Head<br/>[batch, seq, vocab_size]"]
-    Head --> Loss["Cross-Entropy Loss<br/>(during training)"]
-    Head --> Sample["Sample Next Token<br/>(during generation)"]
+    Dots --> TBN["Блок трансформера N"]
+    TBN --> FN["Финальный RMSNorm"]
+    FN --> Head["Голова LM<br/>[batch, seq, vocab_size]"]
+    Head --> Loss["Перекрёстная энтропия<br/>(во время обучения)"]
+    Head --> Sample["Сэмплирование следующего токена<br/>(во время генерации)"]
 ```
 
-## The Config — Your Model "Recipe"
+## Конфигурация — «рецепт» вашей модели
 
 ```python
 from dataclasses import dataclass
@@ -27,41 +27,41 @@ from dataclasses import dataclass
 @dataclass
 class GPTConfig:
     """
-    WHAT: All hyperparameters in one place.
-    WHY: Changing model size is one line. No hunting through code.
+    WHAT: Все гиперпараметры в одном месте.
+    WHY: Изменение размера модели — одна строка. Не нужно искать по всему коду.
     """
-    # ===== Architecture =====
-    vocab_size: int = 50257        # WHAT: 50,257 unique tokens in GPT-2 vocabulary
-    d_model: int = 768             # WHAT: Each token becomes a 768-dim vector
-                                   # WHY: Bigger = more nuanced meanings, more compute
-    num_heads: int = 12            # WHAT: 12 attention heads (12 × 64 = 768)
-    num_layers: int = 12           # WHAT: 12 transformer blocks stacked
-                                   # WHY: Deeper = better reasoning, harder to train
-    max_seq_len: int = 1024        # WHAT: Max tokens model can process at once
+    # ===== Архитектура =====
+    vocab_size: int = 50257        # WHAT: 50 257 уникальных токенов в словаре GPT-2
+    d_model: int = 768             # WHAT: Каждый токен становится вектором размерности 768
+                                   # WHY: Больше = более нюансированные значения, больше вычислений
+    num_heads: int = 12            # WHAT: 12 голов внимания (12 × 64 = 768)
+    num_layers: int = 12           # WHAT: 12 блоков трансформера, расположенных друг над другом
+                                   # WHY: Глубже = лучше рассуждения, сложнее обучать
+    max_seq_len: int = 1024        # WHAT: Максимальное количество токенов, которое модель может обработать за один раз
 
-    # ===== Regularization (prevent overfitting) =====
-    dropout: float = 0.1           # WHAT: Randomly disable 10% of neurons during training
-    embd_dropout: float = 0.1      # WHAT: Dropout applied right after embedding lookup
+    # ===== Регуляризация (предотвращение переобучения) =====
+    dropout: float = 0.1           # WHAT: Случайно отключать 10% нейронов во время обучения
+    embd_dropout: float = 0.1      # WHAT: Dropout применяется сразу после поиска эмбеддинга
 
-    # ===== Training =====
-    learning_rate: float = 3e-4    # WHAT: Step size for weight updates
-    weight_decay: float = 0.1      # WHAT: Penalize large weights (L2 regularization)
-    warmup_steps: int = 2000       # WHAT: Gradually increase LR for first 2000 steps
-    max_steps: int = 100000        # WHAT: Total training iterations
-    batch_size: int = 8            # WHAT: Sequences processed per GPU step
-    grad_accum_steps: int = 4      # WHAT: Accumulate gradient steps (effective batch = 8×4 = 32)
-    betas: tuple = (0.9, 0.95)    # WHAT: AdamW momentum coefficients
-    eps: float = 1e-8              # WHAT: Small constant preventing division by zero
+    # ===== Обучение =====
+    learning_rate: float = 3e-4    # WHAT: Размер шага для обновления весов
+    weight_decay: float = 0.1      # WHAT: Штрафовать большие веса (L2-регуляризация)
+    warmup_steps: int = 2000       # WHAT: Постепенно увеличивать LR в течение первых 2000 шагов
+    max_steps: int = 100000        # WHAT: Общее количество итераций обучения
+    batch_size: int = 8            # WHAT: Последовательностей, обрабатываемых за шаг GPU
+    grad_accum_steps: int = 4      # WHAT: Накопление градиентов (эффективный батч = 8×4 = 32)
+    betas: tuple = (0.9, 0.95)    # WHAT: Коэффициенты момента AdamW
+    eps: float = 1e-8              # WHAT: Малая константа для предотвращения деления на ноль
 
     def __post_init__(self):
-        """Validate configuration consistency."""
+        """Проверка согласованности конфигурации."""
         assert self.d_model % self.num_heads == 0, (
-            f"d_model ({self.d_model}) must be divisible by "
-            f"num_heads ({self.num_heads})"
+            f"d_model ({self.d_model}) должен делиться на "
+            f"num_heads ({self.num_heads}) без остатка"
         )
 ```
 
-## The Complete GPT Model
+## Полная модель GPT
 
 ```python
 import torch
@@ -71,42 +71,41 @@ import torch.nn.functional as F
 
 class GPT(nn.Module):
     """
-    WHAT: A complete decoder-only Transformer language model.
-    WHY: This single class combines everything we've built:
-         embedding → N× transformer blocks → output projection.
+    WHAT: Полная языковая модель Transformer только с декодером.
+    WHY: Этот единственный класс объединяет всё, что мы построили:
+         эмбеддинг → N× блоков трансформера → проекция вывода.
 
-         "Decoder-only" means it generates text left-to-right
-         (causal/autoregressive), without an encoder that would
-         look at the full sequence.
+         «Только декодер» означает, что она генерирует текст слева направо
+         (каузальная/авторегрессионная), без кодировщика, который бы
+         просматривал всю последовательность целиком.
 
-         This is the same architecture family as:
-         GPT-2 (12 layers, 768 dims), GPT-3 (96 layers, 12288 dims),
-         LLaMA 3 (32-80 layers), Mistral (32 layers)
+         Это то же семейство архитектур, что и:
+         GPT-2 (12 слоёв, 768 размерностей), GPT-3 (96 слоёв, 12288 размерностей),
+         LLaMA 3 (32–80 слоёв), Mistral (32 слоя)
     """
 
     def __init__(self, config: GPTConfig):
         super().__init__()
         self.config = config
 
-        # ===== 1. TOKEN EMBEDDING =====
-        # WHAT: Lookup table: token ID → dense vector
-        # WHY: Converts integers (IDs) into the continuous vectors
-        #      that neural networks can work with.
-        #      Shape: [50257, 768] — one row per vocabulary token
+        # ===== 1. ТОКЕН-ЭМБЕДДИНГ =====
+        # WHAT: Таблица поиска: ID токена → плотный вектор
+        # WHY: Преобразует целые числа (ID) в непрерывные векторы,
+        #      с которыми могут работать нейронные сети.
+        #      Форма: [50257, 768] — одна строка на токен словаря
         self.token_embedding = nn.Embedding(config.vocab_size, config.d_model)
 
-        # WHAT: Dropout applied to embeddings
-        # WHY: Early dropout prevents the model from overfitting to
-        #      specific embedding values during training
+        # WHAT: Dropout, применяемый к эмбеддингам
+        # WHY: Ранний dropout предотвращает переобучение модели на
+        #      конкретных значениях эмбеддингов во время обучения
         self.embd_dropout = nn.Dropout(config.embd_dropout)
 
-        # ===== 2. TRANSFORMER BLOCKS =====
-        # WHAT: Stack of N identical transformer layers
-        # WHY: nn.ModuleList registers each block so PyTorch tracks
-        #      their parameters for training. A regular Python list
-        #      would NOT be tracked!
+        # ===== 2. БЛОКИ ТРАНСФОРМЕРА =====
+        # WHAT: Стопка из N идентичных слоёв трансформера
+        # WHY: nn.ModuleList регистрирует каждый блок, чтобы PyTorch отслеживал
+        #      их параметры для обучения. Обычный список Python НЕ отслеживался бы!
         #
-        #      Each block: RMSNorm → Attention(+residual) → RMSNorm → FFN(+residual)
+        #      Каждый блок: RMSNorm → Attention(+остаточное) → RMSNorm → FFN(+остаточное)
         self.layers = nn.ModuleList([
             TransformerBlock(
                 d_model=config.d_model,
@@ -116,54 +115,54 @@ class GPT(nn.Module):
             for _ in range(config.num_layers)
         ])
 
-        # ===== 3. FINAL NORMALIZATION =====
-        # WHAT: One last RMSNorm before the output head
-        # WHY: The output of the last transformer block is raw (unnormalized).
-        #      We normalize before projecting to vocabulary so the
-        #      LM head gets clean, well-scaled inputs.
+        # ===== 3. ФИНАЛЬНАЯ НОРМАЛИЗАЦИЯ =====
+        # WHAT: Последний RMSNorm перед выходной головой
+        # WHY: Выход последнего блока трансформера — сырой (ненормализованный).
+        #      Мы нормализуем перед проекцией в словарь, чтобы
+        #      голова LM получила чистые, хорошо масштабированные входы.
         self.final_norm = RMSNorm(config.d_model)
 
-        # ===== 4. LM HEAD (output projection) =====
-        # WHAT: Linear projection: d_model → vocab_size
-        # WHY: Transforms each token's 768-dim "understanding"
-        #      into a 50257-dim vector of scores — one score per
-        #      possible next token.
+        # ===== 4. ГОЛОВА LM (проекция вывода) =====
+        # WHAT: Линейная проекция: d_model → vocab_size
+        # WHY: Преобразует 768-мерное «понимание» каждого токена
+        #      в 50257-мерный вектор оценок — по одной оценке на
+        #      каждый возможный следующий токен.
         #
-        #      logits[b, t, v] = "score for token v being the next
-        #                         word after position t in batch b"
+        #      logits[b, t, v] = «оценка того, что токен v будет следующим
+        #                         словом после позиции t в батче b»
         self.lm_head = nn.Linear(config.d_model, config.vocab_size, bias=False)
 
-        # ===== 5. WEIGHT TYING =====
-        # WHAT: Share weight matrix between embedding and LM head
-        # WHY: The embedding maps token → vector. The LM head maps
-        #      vector → token. These are INVERSE operations!
+        # ===== 5. СВЯЗЫВАНИЕ ВЕСОВ =====
+        # WHAT: Разделить матрицу весов между эмбеддингом и головой LM
+        # WHY: Эмбеддинг отображает токен → вектор. Голова LM отображает
+        #      вектор → токен. Это ОБРАТНЫЕ операции!
         #
-        #      Sharing weights has three benefits:
-        #      1. Parameter efficiency: saves 50257×768 = 38.6M params
-        #         (30% of the total for GPT-2 small!)
-        #      2. Better regularization: the shared matrix gets
-        #         gradient signals from both directions, improving
-        #         the quality of token representations
-        #      3. Theoretical elegance: input and output tokens
-        #         live in the same semantic space
+        #      Разделение весов даёт три преимущества:
+        #      1. Эффективность параметров: экономия 50257×768 = 38,6 млн параметров
+        #         (30% от общего количества для малой GPT-2!)
+        #      2. Лучшая регуляризация: общая матрица получает
+        #         градиентные сигналы с обоих направлений, улучшая
+        #         качество представлений токенов
+        #      3. Теоретическая элегантность: входные и выходные токены
+        #         живут в одном семантическом пространстве
         #
-        #      How it works: setting self.lm_head.weight to point to
-        #      the SAME tensor as self.token_embedding.weight means
-        #      PyTorch uses the same memory for both.
+        #      Как это работает: установка self.lm_head.weight так, чтобы она указывала на
+        #      ТОТ ЖЕ самый тензор, что и self.token_embedding.weight, означает,
+        #      что PyTorch использует одну и ту же память для обоих.
         self.token_embedding.weight = self.lm_head.weight
 
-        # ===== 6. WEIGHT INITIALIZATION =====
-        # WHAT: Initialize all weights with Normal(0, 0.02)
-        # WHY: Starting from the right distribution is critical.
-        #      Too small → gradients vanish, model never learns.
-        #      Too large → activations saturate, gradients explode.
-        #      0.02 std gives values mostly in [-0.04, 0.04],
-        #      which is the sweet spot for Transformers.
+        # ===== 6. ИНИЦИАЛИЗАЦИЯ ВЕСОВ =====
+        # WHAT: Инициализировать все веса распределением Normal(0, 0.02)
+        # WHY: Начало с правильного распределения критически важно.
+        #      Слишком мало → градиенты затухают, модель никогда не учится.
+        #      Слишком много → активации насыщаются, градиенты взрываются.
+        #      Стандартное отклонение 0.02 даёт значения в основном в диапазоне [-0.04, 0.04],
+        #      что является оптимальным для Transformers.
         self.apply(self._init_weights)
-        print(f"GPT initialized with {self.get_num_params():,} parameters")
+        print(f"GPT инициализирована с {self.get_num_params():,} параметрами")
 
     def _init_weights(self, module: nn.Module):
-        """Initialize weights using the GPT-2 scheme."""
+        """Инициализация весов по схеме GPT-2."""
         if isinstance(module, nn.Linear):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
             if module.bias is not None:
@@ -172,7 +171,7 @@ class GPT(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def get_num_params(self) -> int:
-        """Count total trainable parameters (weights + biases)."""
+        """Подсчитать общее количество обучаемых параметров (весов + смещений)."""
         return sum(p.numel() for p in self.parameters())
 
     def forward(
@@ -181,144 +180,202 @@ class GPT(nn.Module):
         targets: torch.Tensor = None
     ) -> tuple:
         """
-        WHAT: Process a batch of token sequences through the GPT model.
+        WHAT: Обработать батч последовательностей токенов через модель GPT.
 
         Args:
-            input_ids: [batch_size, seq_len] — token IDs for each sequence
-            targets:   [batch_size, seq_len] — same tokens, used for loss
-                       (the model predicts input_ids[t+1] from input_ids[t])
+            input_ids: [batch_size, seq_len] — ID токенов для каждой последовательности
+            targets:   [batch_size, seq_len] — те же токены, используются для потерь
+                       (модель предсказывает input_ids[t+1] по input_ids[t])
 
         Returns:
-            logits: [batch, seq_len, vocab_size] — raw prediction scores
-            loss:   scalar — cross-entropy (None if targets not provided)
+            logits: [batch, seq_len, vocab_size] — сырые оценки предсказаний
+            loss:   скаляр — перекрёстная энтропия (None, если targets не предоставлены)
 
-        The Shift-by-One Trick:
-            Input:  [The,  cat,  sat,  on,   the,  mat]
+        Трюк со сдвигом на единицу:
+            Вход:   [The,  cat,  sat,  on,   the,  mat]
                      ↓     ↓     ↓     ↓     ↓     ↓
-            Target: [cat,  sat,  on,   the,  mat,  ?]
-            Predict: P(cat|The) P(sat|The,cat) ... P(mat|The,cat,sat,on,the)
+            Цель:   [cat,  sat,  on,   the,  mat,  ?]
+            Предсказание: P(cat|The) P(sat|The,cat) ... P(mat|The,cat,sat,on,the)
 
-The dataset already provides shifted targets so we compute loss on all positions.
+Набор данных уже предоставляет сдвинутые цели, поэтому мы вычисляем потери по всем позициям.
         """
         batch_size, seq_len = input_ids.shape
 
-        # ===== 1. EMBED TOKENS =====
-        # Input:  [batch, seq] token IDs
-        # Output: [batch, seq, d_model] continuous vectors
+        # ===== 1. ЭМБЕДДИНГ ТОКЕНОВ =====
+        # Вход:  [batch, seq] ID токенов
+        # Выход: [batch, seq, d_model] непрерывные векторы
         x = self.token_embedding(input_ids)
         x = self.embd_dropout(x)
 
-        # ===== 2. CREATE CAUSAL MASK =====
-        # WHAT: Lower-triangular mask: token i can only see tokens 0..i
-        # WHY: Without this, the model would "cheat" by looking at
-        #      future tokens when predicting the next one.
+        # ===== 2. СОЗДАНИЕ КАУЗАЛЬНОЙ МАСКИ =====
+        # WHAT: Нижнетреугольная маска: токен i может видеть только токены 0..i
+        # WHY: Без этого модель могла бы «жульничать», заглядывая в
+        #      будущие токены при предсказании следующего.
         mask = create_causal_mask(seq_len, input_ids.device)
 
-        # ===== 3. TRANSFORMER LAYERS =====
-        # WHAT: Pass through all N transformer blocks sequentially
-        # WHY: Each layer refines the representations. Early layers
-        #      capture syntax. Later layers capture semantics.
+        # ===== 3. СЛОИ ТРАНСФОРМЕРА =====
+        # WHAT: Последовательно пройти через все N блоков трансформера
+        # WHY: Каждый слой уточняет представления. Ранние слои
+        #      захватывают синтаксис. Поздние слои захватывают семантику.
         for layer in self.layers:
             x = layer(x, mask)
 
-        # ===== 4. FINAL NORMALIZATION =====
+        # ===== 4. ФИНАЛЬНАЯ НОРМАЛИЗАЦИЯ =====
         x = self.final_norm(x)
 
-        # ===== 5. PROJECT TO VOCABULARY =====
-        # WHAT: Convert from d_model-dim "understanding" to vocab_size-dim scores
-        # WHY: Each position gets a score for every possible next token.
+        # ===== 5. ПРОЕКЦИЯ В СЛОВАРЬ =====
+        # WHAT: Преобразовать из d_model-мерного «понимания» в scores размерности vocab_size
+        # WHY: Каждая позиция получает оценку для каждого возможного следующего токена.
         #
-        # Example: logits[0, 3, 2603] = 9.2 means:
-        #   "For batch 0, position 3, the score for token 2603 ('mat') is 9.2"
-        #   Higher score = model thinks this token is more likely.
+        # Пример: logits[0, 3, 2603] = 9.2 означает:
+        #   «Для батча 0, позиции 3 оценка токена 2603 ('mat') равна 9.2»
+        #   Более высокая оценка = модель считает этот токен более вероятным.
         logits = self.lm_head(x)  # [batch, seq_len, vocab_size]
 
-        # ===== 6. COMPUTE LOSS (training only) =====
+        # ===== 6. ВЫЧИСЛЕНИЕ ПОТЕРЬ (только для обучения) =====
         loss = None
         if targets is not None:
-            # WHAT: Align predictions with targets using shift-by-one
+            # WHAT: Согласовать предсказания с целями, используя сдвиг на единицу
             #
-            # logits[:, :-1, :]:  predictions for positions 0..seq-2
-            # targets[:, 1:]:      true tokens for positions 1..seq-1
+            # logits[:, :-1, :]:  предсказания для позиций 0..seq-2
+            # targets[:, 1:]:      истинные токены для позиций 1..seq-1
             #
-            #          Position:  0      1      2      3
-            #          Input:     The    cat    sat    on
-            #          Target:    cat    sat    on     the
+            #          Позиция:   0      1      2      3
+            #          Вход:      The    cat    sat    on
+            #          Цель:      cat    sat    on     the
             #          Logits:   P(cat) P(sat) P(on)  P(the)
             #                                        ^
-            #                                   We drop this
-            #                                   (no target for it)
+            #                                   Мы отбрасываем это
+            #                                   (нет цели для него)
             logits_flat = logits.contiguous().view(
                 -1, self.config.vocab_size
             )
             targets_flat = targets.contiguous().view(
                 -1
             )
+            loss = F.cross_entropy(logits_flat, targets_flat)
+
+        return logits, loss
+
+    @torch.no_grad()
+    def generate(
+        self,
+        input_ids: torch.Tensor,
+        max_new_tokens: int,
+        temperature: float = 1.0,
+        top_k: int = 50,
+        top_p: float = 0.95,
+    ) -> torch.Tensor:
+        """
+        WHAT: Авторегрессионная генерация новых токенов.
+        WHY: Во время инференса у нас нет целей — мы генерируем
+             по одному токену за раз и используем результат как вход для следующего шага.
+
+        Args:
+            input_ids: [batch, seq] — начальный промпт (ID токенов)
+            max_new_tokens: сколько новых токенов сгенерировать
+            temperature: температура сэмплирования (0.0 = greedy, >1.0 = случайно)
+            top_k: топ-K сэмплирование (0 = отключено)
+            top_p: топ-P (nucleus) сэмплирование (1.0 = отключено)
+
+        Returns:
+            [batch, seq + max_new_tokens] — исходный промпт + сгенерированные токены
+        """
+        model.eval()
+        for _ in range(max_new_tokens):
+            # ===== FORWARD PASS =====
+            # WHAT: Получить logits для всех позиций
+            logits, _ = self(input_ids)
+
+            # ===== ИЗВЛЕЧЬ LOGITS ДЛЯ ПОСЛЕДНЕЙ ПОЗИЦИИ =====
+            # WHAT: Нам нужно только предсказание для следующего токена
+            logits = logits[:, -1, :]  # [batch, vocab_size]
+
+            # ===== ПРИМЕНИТЬ ТЕМПЕРАТУРУ =====
+            # WHAT: Масштабировать logits перед softmax
+            # WHY: Низкая температура → резкое распределение (уверенные выборы)
+            #      Высокая температура → плоское распределение (случайные выборы)
+            if temperature > 0:
+                logits = logits / temperature
+
+            # ===== TOP-K САМПЛИРОВАНИЕ =====
+            # WHAT: Сохранить только K наиболее вероятных токенов
+            # WHY: Отфильтровать очевидный мусор, сохраняя разнообразие
+            if top_k > 0:
+                indices_to_remove = logits < torch.topk(logits, top_k)[0][..., -1, None]
+                logits[indices_to_remove] = float('-inf')
+
+            # ===== TOP-P (NUCLEUS) САМПЛИРОВАНИЕ =====
+            # WHAT: Сохранить наименьшее множество токенов с суммарной вероятностью > P
+            # WHY: Адаптируется к уверенности модели:
+            #      Уверенная → мало токенов, Неуверенная → много токенов
+            if top_p < 1.0:
+                sorted_logits, sorted_indices = torch.sort(logits, descending=True)
                 cumulative_probs = torch.cumsum(
                     F.softmax(sorted_logits, dim=-1), dim=-1
                 )
-                # Remove tokens after cumulative probability exceeds top_p
+                # Удалить токены после превышения cumulative probability > top_p
                 sorted_indices_to_remove = cumulative_probs > top_p
-                # Shift right: always keep the first token
+                # Сдвиг вправо: всегда сохранять первый токен
                 sorted_indices_to_remove[:, 1:] = (
                     sorted_indices_to_remove[:, :-1].clone()
                 )
                 sorted_indices_to_remove[:, 0] = False
-                # Scatter back to original order
+                # Вернуть обратно в исходный порядок
                 indices_to_remove = sorted_indices_to_remove.scatter(
                     1, sorted_indices, sorted_indices_to_remove
                 )
                 logits[indices_to_remove] = float('-inf')
 
-            # ===== SAMPLE NEXT TOKEN =====
-            # WHAT: Convert logits → probabilities → pick one token
+            # ===== СЭМПЛИРОВАТЬ СЛЕДУЮЩИЙ ТОКЕН =====
+            # WHAT: Преобразовать logits → вероятности → выбрать один токен
             probs = F.softmax(logits, dim=-1)
             next_token = torch.multinomial(probs, num_samples=1)
 
-            # ===== APPEND TO SEQUENCE =====
+            # ===== ДОБАВИТЬ К ПОСЛЕДОВАТЕЛЬНОСТИ =====
             input_ids = torch.cat([input_ids, next_token], dim=1)
 
         return input_ids
 ```
 
-## nn.Parameter vs register_buffer vs regular attribute
+## nn.Parameter vs register_buffer vs обычный атрибут
 
-This is a common confusion. Here's the definitive guide:
+Это распространённая путаница. Вот окончательное руководство:
 
-| Type | Created By | Tracked by optimizer? | Saved in state_dict? | Moved by .to(device)? |
+| Тип | Создаётся через | Отслеживается оптимизатором? | Сохраняется в state_dict? | Перемещается через .to(device)? |
 |---|---|---|---|---|
-| `nn.Parameter` | `nn.Parameter(tensor)` | Yes | Yes | Yes |
-| `register_buffer` | `self.register_buffer("name", t)` | No | Yes | Yes |
-| Regular attribute | `self.x = tensor` | No | No | No |
+| `nn.Parameter` | `nn.Parameter(tensor)` | Да | Да | Да |
+| `register_buffer` | `self.register_buffer("name", t)` | Нет | Да | Да |
+| Обычный атрибут | `self.x = tensor` | Нет | Нет | Нет |
 
-Our model uses:
-- **nn.Parameter**: All weights (nn.Linear, nn.Embedding create these automatically)
-- **register_buffer**: RoPE's cos/sin caches (not learned, but need to move to GPU)
-- **Regular**: config object (not a tensor, doesn't need GPU)
+Наша модель использует:
+- **nn.Parameter**: Все веса (nn.Linear, nn.Embedding создают их автоматически)
+- **register_buffer**: cos/sin кэши RoPE (не обучаются, но должны перемещаться на GPU)
+- **Обычный**: объект config (не тензор, не нуждается в GPU)
 
-## What Logits Actually Look Like
+## Как на самом деле выглядят Logits
 
 ```python
-# After forward pass, logits have shape [batch=1, seq=6, vocab=50257]:
-logits[0, 5, :]  # Predictions for position 5 (predicting token 6)
-# = array of 50257 numbers like:
+# После forward pass, logits имеют форму [batch=1, seq=6, vocab=50257]:
+logits[0, 5, :]  # Предсказания для позиции 5 (предсказание токена 6)
+# = массив из 50257 чисел вида:
 # [0.1, -0.3, 0.7, ..., 9.2, ..., -2.1]
 #  ^^^^  ^^^^  ^^^^       ^^^^       ^^^^
 #  "the" "a"   "an"       "mat"      "xyzzy"
 
-# After softmax: probabilities summing to 1.0
+# После softmax: вероятности, суммирующиеся в 1.0
 probs = softmax(logits[0, 5, :])
 # [0.0001, 0.0001, 0.0003, ..., 0.45, ..., 0.0000]
 #                              ^^^^
-#                          "mat" has 45% probability
+#                          "mat" имеет вероятность 45%
 
-# Model's top predictions for position 5:
+# Топ-5 предсказаний модели для позиции 5:
 top5_indices = torch.topk(logits[0, 5, :], 5).indices
-# → [2603, 4521, 1234, 8901, 345]  (token IDs)
+# → [2603, 4521, 1234, 8901, 345]  (ID токенов)
 # → ["mat", "rug", "floor", "table", "chair"]
 ```
 
 ---
 
-**Previous:** [Chapter 6 — Transformer Block](06_transformer_block.md)
-**Next:** [Chapter 8 — Training Pipeline](08_training.md)
+**Предыдущая:** [Глава 6 — Блок трансформера](06_transformer_block.md)  
+**Следующая:** [Глава 8 — Конвейер обучения](08_training.md)
