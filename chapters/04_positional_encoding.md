@@ -1,129 +1,129 @@
-# Chapter 4 — Positional Encoding: Teaching Order
+# Глава 4 — Позиционное кодирование: Обучение порядку
 
-## The 5-Year-Old Analogy
+## Аналогия для пятилетних
 
-Consider two sentences:
-- "The **dog** bit the **man**."  — scary
-- "The **man** bit the **dog**."  — weird
+Рассмотрим два предложения:
+- «The **dog** bit the **man**.» — страшно
+- «The **man** bit the **dog**.» — странно
 
-Same words, different order -> **completely different meaning**.
+Те же слова, другой порядок → **совершенно другой смысл**.
 
-But the Transformer reads all words **at once** (not one by one like humans do). It has **no idea** which word comes first! So we must **stamp each word with its position** before feeding it to the model.
+Но Transformer читает все слова **одновременно** (не по одному, как люди). Он **не знает**, какое слово идёт первым! Поэтому мы должны **пометить каждое слово его позицией** перед подачей в модель.
 
-## The Three Generations of Position Encoding
+## Три поколения позиционного кодирования
 
-| Method | How It Works | Pros | Cons | Used By |
+| Метод | Как работает | Плюсы | Минусы | Используется в |
 |---|---|---|---|---|
-| **Learned** | Each position gets its own learned vector | Simple, flexible | Can't handle sequences longer than training | GPT-2, BERT |
-| **Sinusoidal** | Fixed sine/cosine waves by position | Works for any length | Weaker at relative positions | Original Transformer |
-| **RoPE** | Rotates Q,K vectors by position angle | Perfect relative positions, any length | Slightly more complex | LLaMA, Mistral, Qwen, Gemma |
-| **ALiBi** | Adds a bias to attention scores based on distance | No learned params, very fast | Less expressive | BLOOM, MPT |
+| **Learned** | Каждая позиция получает свой обучаемый вектор | Просто, гибко | Не может обрабатывать последовательности длиннее обучающих | GPT-2, BERT |
+| **Sinusoidal** | Фиксированные синус/косинус волны по позиции | Работает для любой длины | Слабее на относительных позициях | Оригинальный Transformer |
+| **RoPE** | Вращает векторы Q,K на угол, зависящий от позиции | Идеальные относительные позиции, любая длина | Немного сложнее | LLaMA, Mistral, Qwen, Gemma |
+| **ALiBi** | Добавляет смещение к оценкам внимания на основе расстояния | Нет обучаемых параметров, очень быстро | Менее выразительно | BLOOM, MPT |
 
-## Modern Approach: Rotary Position Embeddings (RoPE)
+## Современный подход: Rotary Position Embeddings (RoPE)
 
-Instead of **adding** position numbers to embeddings, RoPE **rotates** the query and key vectors by an angle that depends on position.
+Вместо **добавления** номеров позиций к эмбеддингам, RoPE **вращает** векторы запроса и ключа на угол, зависящий от позиции.
 
-### The Math Intuition
+### Математическая интуиция
 
-In 2D, rotating a vector `(x, y)` by angle `θ` gives:
+В 2D вращение вектора `(x, y)` на угол `θ` даёт:
 ```
 x' = x*cos(θ) - y*sin(θ)
 y' = x*sin(θ) + y*cos(θ)
 ```
 
-RoPE does this for EVERY pair of dimensions in the query and key vectors. The rotation angle for position `p` and dimension pair `2i, 2i+1` is:
+RoPE делает это для КАЖДОЙ пары измерений в векторах запроса и ключа. Угол вращения для позиции `p` и пары измерений `2i, 2i+1`:
 
 ```
 θ(p, i) = p / (10000^(2i/d_model))
 ```
 
-**Key insight:** The angle depends on `p` (position) and `i` (dimension pair index). Lower dimension pairs rotate FAST (capturing local word relationships). Higher pairs rotate SLOW (capturing long-range relationships).
+**Ключевая идея:** Угол зависит от `p` (позиция) и `i` (индекс пары измерений). Нижние пары измерений вращаются БЫСТРО (захватывая локальные отношения слов). Высшие пары вращаются МЕДЛЕННО (захватывая дальние отношения).
 
-### Numerical Worked Example
+### Числовой пример
 
-Let's trace RoPE with a tiny model: `d_model=4`, processing position `p=1`:
+Проследим RoPE с крошечной моделью: `d_model=4`, обработка позиции `p=1`:
 
-**Step 1: Compute frequencies for each dimension pair**
-
-```
-Pair 0 (dims 0,1): freq = 1 / 10000^(0/4)   = 1 / 1       = 1.000
-Pair 1 (dims 2,3): freq = 1 / 10000^(2/4)   = 1 / 10000^0.5 = 1 / 100 = 0.010
-```
-
-**Step 2: Compute rotation angle for position p=1**
+**Шаг 1: Вычисление частот для каждой пары измерений**
 
 ```
-Pair 0 angle: θ₀ = p * freq₀ = 1 * 1.000 = 1.000 radian (≈ 57.3°)
-Pair 1 angle: θ₁ = p * freq₁ = 1 * 0.010 = 0.010 radian (≈ 0.57°)
+Пара 0 (изм 0,1): freq = 1 / 10000^(0/4)   = 1 / 1       = 1.000
+Пара 1 (изм 2,3): freq = 1 / 10000^(2/4)   = 1 / 10000^0.5 = 1 / 100 = 0.010
 ```
 
-**Step 3: Apply rotation to a query vector at position 1**
+**Шаг 2: Вычисление угла вращения для позиции p=1**
 
 ```
-Before RoPE: q₁ = [0.8, 0.3, -0.5, 0.2]
+Пара 0 угол: θ₀ = p * freq₀ = 1 * 1.000 = 1.000 радиан (≈ 57.3°)
+Пара 1 угол: θ₁ = p * freq₁ = 1 * 0.010 = 0.010 радиан (≈ 0.57°)
+```
 
-Rotate pair 0 (dims 0,1) by 57.3°:
+**Шаг 3: Применение вращения к вектору запроса на позиции 1**
+
+```
+До RoPE: q₁ = [0.8, 0.3, -0.5, 0.2]
+
+Вращаем пару 0 (изм 0,1) на 57.3°:
   dim0' = 0.8*cos(1.0) - 0.3*sin(1.0) = 0.8*0.540 - 0.3*0.842 = 0.432 - 0.253 = 0.179
   dim1' = 0.8*sin(1.0) + 0.3*cos(1.0) = 0.8*0.842 + 0.3*0.540 = 0.674 + 0.162 = 0.836
 
-Rotate pair 1 (dims 2,3) by 0.57°:
+Вращаем пару 1 (изм 2,3) на 0.57°:
   dim2' = -0.5*cos(0.01) - 0.2*sin(0.01) = -0.5*1.000 - 0.2*0.010 = -0.500 - 0.002 = -0.502
   dim3' = -0.5*sin(0.01) + 0.2*cos(0.01) = -0.5*0.010 + 0.2*1.000 = -0.005 + 0.200 = 0.195
 
-After RoPE: q₁' = [0.179, 0.836, -0.502, 0.195]
+После RoPE: q₁' = [0.179, 0.836, -0.502, 0.195]
 ```
 
-Now let's compute what happens at positions 1 and 3:
+Теперь вычислим, что происходит на позициях 1 и 3:
 
 ```
-Position 1: θ₀ = 1.0 rad,  θ₁ = 0.01 rad
-Position 3: θ₀ = 3.0 rad,  θ₁ = 0.03 rad
+Позиция 1: θ₀ = 1.0 рад,  θ₁ = 0.01 рад
+Позиция 3: θ₀ = 3.0 рад,  θ₁ = 0.03 рад
 
-The dot product q₁ · k₃ will depend on the DIFFERENCE:
-  Δθ₀ = 3.0 - 1.0 = 2.0 rad
-  Δθ₁ = 0.03 - 0.01 = 0.02 rad
+Скалярное произведение q₁ · k₃ будет зависеть от РАЗНИЦЫ:
+  Δθ₀ = 3.0 - 1.0 = 2.0 рад
+  Δθ₁ = 0.03 - 0.01 = 0.02 рад
   
-This difference depends ONLY on (3-1)=2, the relative distance!
-Absolute positions don't matter — only how far apart they are.
+Эта разница зависит ТОЛЬКО от (3-1)=2, относительного расстояния!
+Абсолютные позиции не важны — важно только, насколько далеко они друг от друга.
 ```
 
-This is why RoPE is brilliant: the attention score between position `i` and `j` depends **only** on their relative distance `(j-i)`, not their absolute positions.
+Вот почему RoPE блестящ: оценка внимания между позициями `i` и `j` зависит **только** от их относительного расстояния `(j-i)`, а не от их абсолютных позиций.
 
-### Why theta=10000?
+### Почему theta=10000?
 
-The base frequency `theta = 10000` controls the "spread" of frequencies:
+Базовая частота `theta = 10000` контролирует «разброс» частот:
 
 ```
-Low theta (e.g., 100):
-  - All dimension pairs rotate similarly
-  - Model is more "position-agnostic" — better for long contexts
-  - But loses fine-grained position resolution
+Низкий theta (например, 100):
+  - Все пары измерений вращаются похоже
+  - Модель более «позиционно-агностична» — лучше для длинных контекстов
+  - Но теряет точность разрешения позиций
 
-High theta (e.g., 100000):
-  - Very different rotation speeds across dimensions
-  - Better at distinguishing nearby positions
-  - But struggles with very long contexts
+Высокий theta (например, 100000):
+  - Очень разные скорости вращения по измерениям
+  - Лучше различает близкие позиции
+  - Но борется с очень длинными контекстами
 
-10000 was found empirically to balance these tradeoffs.
+10000 было найдено эмпирически для баланса этих компромиссов.
 ```
 
-### Extending Context Beyond Training Length
+### Расширение контекста за пределы длины обучения
 
-What if we trained on 2048 tokens but want to use 4096 at inference?
+Что если мы обучались на 2048 токенах, но хотим использовать 4096 при выводе?
 
-**The problem:** RoPE was precomputed for positions 0-2047. Position 3000 was never seen.
+**Проблема:** RoPE был предварительно вычислен для позиций 0-2047. Позиция 3000 никогда не виделась.
 
-**Solutions:**
-| Method | How It Works | Quality |
+**Решения:**
+| Метод | Как работает | Качество |
 |---|---|---|
-| **Linear interpolation** | Position / scale (e.g., p/2 for 2x length) | OK, loses resolution |
-| **NTK-aware scaling** | Scale theta differently per frequency | Good |
-| **YaRN** | NTK + temperature scaling | Best (used in production) |
-| **Retrain** | Just train on longer sequences | Perfect but expensive |
+| **Линейная интерполяция** | Позиция / масштаб (например, p/2 для 2x длины) | ОК, теряет разрешение |
+| **NTK-aware масштабирование** | Масштабировать theta по-разному для частот | Хорошо |
+| **YaRN** | NTK + температурное масштабирование | Лучшее (используется в продакшене) |
+| **Переобучение** | Просто обучить на более длинных последовательностях | Идеально, но дорого |
 
-For our small training run, this doesn't matter — but know that it's a hot research area for production models.
+Для нашего небольшого запуска обучения это не имеет значения — но знайте, что это горячая область исследований для продакшен-моделей.
 
-## RoPE Code — Annotated
+## Код RoPE — с комментариями
 
 ```python
 import torch
@@ -133,137 +133,137 @@ import math
 
 class RotaryPositionalEmbedding(nn.Module):
     """
-    WHAT: Rotary Position Embeddings (RoPE).
-    WHY: Instead of ADDING position info to embeddings,
-         we ROTATE Q and K vectors by position-dependent angles.
-         The dot product q_i · k_j then depends ONLY on (j-i),
-         which is exactly what attention should care about.
+    ЧТО: Rotary Position Embeddings (RoPE).
+    ЗАЧЕМ: Вместо ДОБАВЛЕНИЯ информации о позиции к эмбеддингам,
+         мы ВРАЩАЕМ векторы Q и K на углы, зависящие от позиции.
+         Скалярное произведение q_i · k_j тогда зависит ТОЛЬКО от (j-i),
+         что именно и нужно вниманию.
 
-         Paper: "RoFormer" (Su et al., 2021)
-         Used in: LLaMA 1/2/3, Mistral, Mixtral, Qwen 1/2, Gemma
+         Статья: "RoFormer" (Su et al., 2021)
+         Используется в: LLaMA 1/2/3, Mistral, Mixtral, Qwen 1/2, Gemma
 
-         How it works at a glance:
-         1. For each pair of dimensions (0,1), (2,3), (4,5), ...
-         2. Rotate by angle = position * frequency
-         3. Lower dims rotate fast (local position)
-            Higher dims rotate slow (global position)
-         4. The dot product naturally depends on relative distance
+         Как работает вкратце:
+         1. Для каждой пары измерений (0,1), (2,3), (4,5), ...
+         2. Вращаем на угол = позиция * частота
+         3. Нижние измерения вращаются быстро (локальная позиция)
+            Высшие измерения вращаются медленно (глобальная позиция)
+         4. Скалярное произведение естественно зависит от относительного расстояния
     """
 
     def __init__(self, d_model: int, max_seq_len: int = 2048, theta: float = 10000.0):
         """
-        WHAT: Precompute rotation frequencies for fast lookup.
+        ЧТО: Предварительно вычислить частоты вращения для быстрого поиска.
 
-        Args:
-            d_model:     Head dimension (e.g., 64 for GPT-2). Must be even.
-            max_seq_len: Precompute angles for positions 0..max_seq_len-1.
-            theta:       Base frequency. 10000 is standard. Controls the
-                         spread between fast and slow rotation frequencies.
+        Аргументы:
+            d_model:     Размерность головы (например, 64 для GPT-2). Должно быть чётным.
+            max_seq_len: Предвычислить углы для позиций 0..max_seq_len-1.
+            theta:       Базовая частота. 10000 — стандарт. Контролирует
+                         разброс между быстрыми и медленными частотами вращения.
         """
         super().__init__()
 
-        # WHAT: Verify d_model is even (must have pairs to rotate)
+        # ЧТО: Проверить, что d_model чётное (нужны пары для вращения)
         assert d_model % 2 == 0, (
-            f"d_model ({d_model}) must be even for RoPE. "
-            f"Each pair of dimensions needs a partner to rotate with."
+            f"d_model ({d_model}) должно быть чётным для RoPE. "
+            f"Каждой паре измерений нужен партнёр для вращения."
         )
 
-        # WHAT: Create dimension indices: [0, 2, 4, ..., d_model-2]
-        # WHY: Each pair (2i, 2i+1) gets the same rotation frequency.
-        #      We only need half the indices because pairs share.
+        # ЧТО: Создать индексы измерений: [0, 2, 4, ..., d_model-2]
+        # ЗАЧЕМ: Каждая пара (2i, 2i+1) получает одинаковую частоту вращения.
+        #      Нужна только половина индексов, потому что пары общие.
         dim_indices = torch.arange(0, d_model, 2).float()
 
-        # WHAT: Compute rotation frequencies
-        # WHY: theta_i = 1 / (theta ^ (2i / d_model))
+        # ЧТО: Вычислить частоты вращения
+        # ЗАЧЕМ: theta_i = 1 / (theta ^ (2i / d_model))
         #
-        #      i=0:  1 / 10000^(0/64)      = 1.0      → fast rotation (local)
-        #      i=30: 1 / 10000^(60/64)     ≈ 0.0001   → slow rotation (global)
+        #      i=0:  1 / 10000^(0/64)      = 1.0      → быстрое вращение (локальное)
+        #      i=30: 1 / 10000^(60/64)     ≈ 0.0001   → медленное вращение (глобальное)
         #
-        #      This multi-scale approach means some dimensions
-        #      capture local word order while others capture
-        #      long-range position relationships.
+        #      Этот многомасштабный подход означает, что некоторые измерения
+        #      захватывают локальный порядок слов, а другие захватывают
+        #      отношения позиций на длинных дистанциях.
         inv_freq = 1.0 / (theta ** (dim_indices / d_model))
 
-        # WHAT: Precompute angles for all positions
-        # WHY: Computing cos/sin during training is expensive.
-        #      Precomputing them once and caching is 100x faster.
+        # ЧТО: Предварительно вычислить углы для всех позиций
+        # ЗАЧЕМ: Вычисление cos/sin во время обучения дорого.
+        #      Предвычисление один раз и кэширование в 100 раз быстрее.
         positions = torch.arange(max_seq_len).float()     # [0, 1, 2, ..., 2047]
 
-        # WHAT: Outer product: each position x each frequency
-        #       freqs[p, i] = p * inv_freq[i] = angle for position p, dim pair i
-        #       Shape: [max_seq_len, d_model/2]
+        # ЧТО: Внешнее произведение: каждая позиция x каждая частота
+        #       freqs[p, i] = p * inv_freq[i] = угол для позиции p, пары измерений i
+        #       Форма: [max_seq_len, d_model/2]
         freqs = torch.outer(positions, inv_freq)
 
-        # WHAT: Duplicate to full dimension
-        # WHY: Each dim pair (2i, 2i+1) gets the same angle,
-        #      so we copy each angle: [θ0, θ1, θ2, ...] -> [θ0, θ0, θ1, θ1, ...]
+        # ЧТО: Дублировать до полной размерности
+        # ЗАЧЕМ: Каждая пара измерений (2i, 2i+1) получает одинаковый угол,
+        #      поэтому копируем каждый угол: [θ0, θ1, θ2, ...] -> [θ0, θ0, θ1, θ1, ...]
         emb = freqs.repeat_interleave(2, dim=-1)         # [max_seq_len, d_model]
 
-        # WHAT: Cache cos and sin for all positions
-        # WHY: register_buffer means these move with model.to(device)
-        #      and are saved with model.state_dict(), but are NOT
-        #      trainable parameters (no gradients needed).
-        self.register_buffer("cos_cached", emb.cos())   # cos of each angle
-        self.register_buffer("sin_cached", emb.sin())   # sin of each angle
+        # ЧТО: Кэшировать cos и sin для всех позиций
+        # ЗАЧЕМ: register_buffer означает, что они перемещаются с model.to(device)
+        #      и сохраняются с model.state_dict(), но НЕ являются
+        #      обучаемыми параметрами (градиенты не нужны).
+        self.register_buffer("cos_cached", emb.cos())   # cos каждого угла
+        self.register_buffer("sin_cached", emb.sin())   # sin каждого угла
 
     @staticmethod
     def rotate_half(x: torch.Tensor) -> torch.Tensor:
         """
-        WHAT: Prepare a vector for the rotation formula.
-        WHY:  The rotation formula is: x' = x*cos + rotate_half(x)*sin
+        ЧТО: Подготовить вектор для формулы вращения.
+        ЗАЧЕМ: Формула вращения: x' = x*cos + rotate_half(x)*sin
         
-              For vector [x0, x1, x2, x3, x4, x5]:
-              rotate_half returns [-x1, x0, -x3, x2, -x5, x4]
+              Для вектора [x0, x1, x2, x3, x4, x5]:
+              rotate_half возвращает [-x1, x0, -x3, x2, -x5, x4]
               
-              Why this works: For pair (x0, x1) rotated by angle θ:
-                x0' = x0*cos(θ) - x1*sin(θ)   ← matches: x0*cos + (-x1)*sin
-                x1' = x0*sin(θ) + x1*cos(θ)   ← matches: x1*cos + (x0)*sin
+              Почему это работает: Для пары (x0, x1), повёрнутой на угол θ:
+                x0' = x0*cos(θ) - x1*sin(θ)   ← совпадает: x0*cos + (-x1)*sin
+                x1' = x0*sin(θ) + x1*cos(θ)   ← совпадает: x1*cos + (x0)*sin
               
-              So executing (x*cos + rotate_half(x)*sin) performs rotation
-              on every dimension pair simultaneously — no loop needed!
+              Таким образом выполнение (x*cos + rotate_half(x)*sin) выполняет вращение
+              на каждой паре измерений одновременно — без цикла!
         """
-        x1 = x[..., : x.shape[-1] // 2]   # First half:  [x0, x2, x4, ...]
-        x2 = x[..., x.shape[-1] // 2 :]   # Second half: [x1, x3, x5, ...]
+        x1 = x[..., : x.shape[-1] // 2]   # Первая половина:  [x0, x2, x4, ...]
+        x2 = x[..., x.shape[-1] // 2 :]   # Вторая половина: [x1, x3, x5, ...]
         return torch.cat([-x2, x1], dim=-1)  # [-x1, x0, -x3, x2, -x5, x4, ...]
 
     def forward(self, x: torch.Tensor, seq_len: int) -> torch.Tensor:
         """
-        WHAT: Apply RoPE to queries or keys.
+        ЧТО: Применить RoPE к запросам или ключам.
 
-        Input:  [batch, num_heads, seq_len, head_dim]
-                x can be either Q or K (NOT V — values don't need position)
-        Output: Same shape, rotated by position-dependent angles
+        Вход:  [batch, num_heads, seq_len, head_dim]
+                x может быть Q или K (НЕ V — значениям не нужна позиция)
+        Выход: Та же форма, повёрнутая на углы, зависящие от позиции
 
-        WHY applied only to Q and K:
-        The attention score = Q_i · K_j controls WHICH values to attend to.
-        We want this score to depend on relative position.
-        The VALUE vectors carry content — position is irrelevant for the
-        content itself. Position only matters for deciding which tokens
-        to pay attention TO.
+        ЗАЧЕМ применяется только к Q и K:
+        Оценка внимания = Q_i · K_j контролирует, КАКИМИ значениями интересоваться.
+        Мы хотим, чтобы эта оценка зависела от относительной позиции.
+        Векторы ЗНАЧЕНИЙ несут контент — позиция не важна для самого
+        контента. Позиция важна только для решения, каким токенам
+        уделять внимание.
         """
-        # WHAT: Extract cos and sin for current sequence length
-        # WHY: If seq_len=512 but max_seq_len=2048, we only need
-        #      the first 512 rows of the cached cos/sin tables.
+        # ЧТО: Извлечь cos и sin для текущей длины последовательности
+        # ЗАЧЕМ: Если seq_len=512, но max_seq_len=2048, нам нужны только
+        #      первые 512 строк кэшированных таблиц cos/sin.
         cos = self.cos_cached[:seq_len]   # [seq_len, head_dim]
         sin = self.sin_cached[:seq_len]   # [seq_len, head_dim]
 
-        # WHAT: Add batch and head dimensions for broadcasting
-        # WHY: cos/sin are [seq_len, head_dim]. We need them to
-        #      multiply with x [batch, heads, seq_len, head_dim].
-        #      unsqueeze(0).unsqueeze(0) adds dims at positions 0 and 1:
+        # ЧТО: Добавить размерности batch и head для broadcasting
+        # ЗАЧЕМ: cos/sin имеют форму [seq_len, head_dim]. Нам нужно, чтобы они
+        #      умножались на x [batch, heads, seq_len, head_dim].
+        #      unsqueeze(0).unsqueeze(0) добавляет измерения на позиции 0 и 1:
         #      [seq_len, head_dim] -> [1, 1, seq_len, head_dim]
-        #      Now they broadcast correctly over batch and heads.
+        #      Теперь они корректно broadcastятся по batch и heads.
         cos = cos.unsqueeze(0).unsqueeze(0)
         sin = sin.unsqueeze(0).unsqueeze(0)
 
-        # WHAT: Execute rotation: x_rotated = x*cos(θ) + rotate_half(x)*sin(θ)
-        # WHY: This is mathematically equivalent to applying a 2D rotation
-        #      matrix to each pair of dimensions, but implemented in pure
-        #      element-wise operations — much faster and parallelizable.
+        # ЧТО: Выполнить вращение: x_rotated = x*cos(θ) + rotate_half(x)*sin(θ)
+        # ЗАЧЕМ: Это математически эквивалентно применению матрицы 2D-вращения
+        #      к каждой паре измерений, но реализовано через чистые
+        #      поэлементные операции — намного быстрее и параллелизуемо.
         return (x * cos) + (self.rotate_half(x) * sin)
 ```
 
 ---
 
-**Previous:** [Chapter 3 — Embeddings](03_embeddings.md)
-**Next:** [Chapter 5 — Attention](05_attention.md)
+**Предыдущая:** [Глава 3 — Эмбеддинги](03_embeddings.md)
+**Следующая:** [Глава 5 — Внимание](05_attention.md)

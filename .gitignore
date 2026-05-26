@@ -1,35 +1,17 @@
 ```markdown
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-*.o
-*.obj
-*.class
-*.exe
-*.dll
-*.so
-*.a
-*.out
-
 # Dependencies
 node_modules/
-venv/
 .venv/
-.env
-.env.local
-.env.*
-
-# Build directories
+venv/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
 dist/
 build/
 target/
-.mypy_cache/
-.pytest_cache/
-.coverage
-coverage/
-htmlcov/
+.gradle/
 
-# Editors and IDEs
+# Editor/IDE files
 .vscode/
 .idea/
 *.swp
@@ -39,7 +21,26 @@ htmlcov/
 # System files
 .DS_Store
 Thumbs.db
+.env
+.env.local
+*.env.*
+
+# Logs and coverage
 *.log
+coverage/
+htmlcov/
+.coverage
+
+# Compiled files
+*.pyc
+*.class
+*.o
+*.exe
+*.dll
+*.so
+*.a
+*.obj
+*.out
 
 # Compressed files
 *.zip
@@ -64,8 +65,4 @@ Thumbs.db
 *.tar.bz2
 *.tar.xz
 *.tar.zst
-
-# Gradle
-.gradle/
-
 ```
