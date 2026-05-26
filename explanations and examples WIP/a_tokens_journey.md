@@ -1,103 +1,69 @@
-# A Token's Journey: One Sentence Through the Entire GPT
+# Путешествие токена: одно предложение через всю GPT
 
-This is the story of one sentence. We will follow it from the moment it
-enters the model as raw text to the moment the model predicts the next
-word. Every number is real. Every step is explained. By the end you will
-see how every piece of the architecture works together.
+Это история одного предложения. Мы последуем за ним с момента, когда оно входит в модель как сырой текст, до момента, когда модель предсказывает следующее слово. Каждое число реально. Каждый шаг объяснён. К концу вы увидите, как все части архитектуры работают вместе.
 
-## The sentence
+## Предложение
 
 ```
 "The cat sat on the mat"
 ```
 
-Six words. One period. This is our test subject. We want the model to
-read this sentence and predict what word comes next. Maybe *comfortably*.
-Maybe *quietly*. Maybe *and*. The model does not know yet. It will figure
-it out step by step.
+Шесть слов. Одна точка. Это наш тестовый объект. Мы хотим, чтобы модель прочитала это предложение и предсказала, какое слово будет следующим. Возможно, *comfortably* (комфортно). Возможно, *quietly* (тихо). Возможно, *and* (и). Модель ещё не знает. Она выяснит это шаг за шагом.
 
-## Step 1: Tokenization
+## Шаг 1: Токенизация
 
-The first thing the model does is break the sentence into tokens. Our
-tokenizer uses the same BPE vocabulary as GPT-2. It has 50257 tokens.
-Each token is a small piece of text. Common words get their own token.
-Punctuation gets its own token.
+Первое, что делает модель, — разбивает предложение на токены. Наш токенизатор использует тот же словарь BPE, что и GPT-2. В нём 50257 токенов. Каждый токен — небольшая часть текста. Распространённые слова получают собственный токен. Знаки препинания получают собственный токен.
 
 ```
 "The cat sat on the mat."
-    ↓  tokenizer
+    ↓  токенизатор
 [464, 3797, 3332, 319, 262, 2603, 13]
 ```
 
-Seven tokens for seven pieces of text. Token 464 is *The* with a capital
-T. Token 3797 is *cat*. Token 3332 is *sat*. Token 319 is *on*. Token
-262 is *the* with a lowercase t. Token 2603 is *mat*. Token 13 is the
-period. Each token is just a number. The model does not know what these
-numbers mean yet.
+Семь токенов для семи частей текста. Токен 464 — это *The* с заглавной T. Токен 3797 — это *cat*. Токен 3332 — это *sat*. Токен 319 — это *on*. Токен 262 — это *the* со строчной t. Токен 2603 — это *mat*. Токен 13 — это точка. Каждый токен — просто число. Модель пока не знает, что означают эти числа.
 
-## Step 2: Embedding lookup
+## Шаг 2: Поиск эмбеддингов
 
-The model has a giant lookup table. It has 50257 rows. Each row is a
-vector of 768 numbers. Row 3797 is the vector for *cat*. Row 2603 is the
-vector for *mat*. The model looks up each token ID and returns its
-vector.
+У модели есть гигантская таблица поиска. В ней 50257 строк. Каждая строка — вектор из 768 чисел. Строка 3797 — вектор для *cat*. Строка 2603 — вектор для *mat*. Модель берёт каждый ID токена и возвращает его вектор.
 
 ```
-Token 464 ("The"):  [ 0.023, -0.451,  0.789, ..., -0.102]  (768 numbers)
-Token 3797 ("cat"): [ 0.019, -0.443,  0.795, ..., -0.098]
-Token 3332 ("sat"): [-0.231,  0.567, -0.334, ...,  0.445]
-Token 319 ("on"):   [ 0.891,  0.112, -0.334, ...,  0.567]
-Token 262 ("the"):  [ 0.773, -0.219,  0.441, ..., -0.332]
-Token 2603 ("mat"): [ 0.445, -0.667,  0.223, ..., -0.111]
-Token 13 ("."):     [-0.123,  0.456, -0.789, ...,  0.234]
+Токен 464 ("The"):  [ 0.023, -0.451,  0.789, ..., -0.102]  (768 чисел)
+Токен 3797 ("cat"): [ 0.019, -0.443,  0.795, ..., -0.098]
+Токен 3332 ("sat"): [-0.231,  0.567, -0.334, ...,  0.445]
+Токен 319 ("on"):   [ 0.891,  0.112, -0.334, ...,  0.567]
+Токен 262 ("the"):  [ 0.773, -0.219,  0.441, ..., -0.332]
+Токен 2603 ("mat"): [ 0.445, -0.667,  0.223, ..., -0.111]
+Токен 13 ("."):     [-0.123,  0.456, -0.789, ...,  0.234]
 ```
 
-We now have a matrix of shape 7 times 768. Seven rows. Seven hundred and
-sixty eight columns. This matrix is the input to the first transformer
-block.
+Теперь у нас есть матрица формы 7×768. Семь строк. Семьсот шестьдесят восемь столбцов. Эта матрица — вход для первого блока трансформера.
 
-At this point the vectors are random. The model was just initialized.
-*Cat* and *dog* are not near each other yet. Training will fix that. But
-even now the model can process them. The vectors exist. They have shape.
-The math can flow.
+На этом этапе векторы случайны. Модель только что инициализирована. *Cat* и *dog* ещё не находятся рядом друг с другом. Обучение исправит это. Но даже сейчас модель может их обработать. Векторы существуют. Они имеют форму. Математика может течь.
 
-## Step 3: The first transformer block
+## Шаг 3: Первый блок трансформера
 
-The model has twelve transformer blocks. Each block does the same two
-things. First attention: let every word talk to every other word. Second
-feed forward: let each word think privately about what it heard.
+В модели двенадцать блоков трансформера. Каждый блок делает две одинаковые вещи. Сначала внимание: пусть каждое слово поговорит с каждым другим словом. Затем прямое распространение: пусть каждое слово privately подумает о том, что оно услышало.
 
-### Step 3a: Multi-head attention
+### Шаг 3a: Многоголовое внимание
 
-Attention is where the magic happens. The word *sat* needs to understand
-what it is doing in this sentence. It should look at *The* and *cat*
-because they tell it who is sitting. It should look at *on* and *the*
-and *mat* because they tell it where. It should look at the period
-because that tells it the sentence is ending.
+Здесь происходит магия. Слово *sat* должно понять, что оно делает в этом предложении. Оно должно посмотреть на *The* и *cat*, потому что они говорят ему, кто сидит. Оно должно посмотреть на *on* и *the* и *mat*, потому что они говорят ему, где. Оно должно посмотреть на точку, потому что она говорит ему, что предложение заканчивается.
 
-The attention mechanism has twelve heads. Each head looks at the
-sentence from a different angle. One head might focus on subject-verb
-relationships. Another might focus on prepositional phrases. Another
-might focus on sentence boundaries.
+Механизм внимания имеет двенадцать голов. Каждая голова смотрит на предложение под разным углом. Одна голова может фокусироваться на отношениях подлежащее-глагол. Другая может фокусироваться на предложных фразах. Третья может фокусироваться на границах предложений.
 
-For one head with our seven tokens the model does the following:
+Для одной головы с нашими семью токенами модель делает следующее:
 
-First it projects every token into three spaces. The Query space asks
-what am I looking for. The Key space says what do I have to offer. The
-Value space holds my actual content.
+Сначала она проецирует каждый токен в три пространства. Пространство Query (запрос) спрашивает: что я ищу. Пространство Key (ключ) говорит: что я могу предложить. Пространство Value (значение) содержит моё фактическое содержание.
 
 ```
-For token "sat" (position 2):
-Q = [ 0.34, -0.12,  0.78, ...]  (64 numbers for this head)
-K = [-0.23,  0.56, -0.41, ...]  (64 numbers)
-V = [ 0.67, -0.89,  0.12, ...]  (64 numbers)
+Для токена "sat" (позиция 2):
+Q = [ 0.34, -0.12,  0.78, ...]  (64 числа для этой головы)
+K = [-0.23,  0.56, -0.41, ...]  (64 числа)
+V = [ 0.67, -0.89,  0.12, ...]  (64 числа)
 ```
 
-Then it asks every other token: how well does my Query match your Key.
-This is the attention score. A high score means sat really wants what
-that token offers. A low score means sat does not care.
+Затем она спрашивает каждый другой токен: насколько хорошо мой Query совпадает с вашим Key. Это оценка внимания. Высокая оценка означает, что sat очень хочет того, что предлагает этот токен. Низкая оценка означает, что sat не волнует.
 
-Let us look at the computed scores for sat against every token. Before
+Давайте посмотрим на вычисленные оценки для sat против каждого токена. До
 softmax these are raw numbers. Larger is better.
 
 ```
