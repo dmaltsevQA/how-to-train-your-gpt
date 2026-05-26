@@ -1,282 +1,282 @@
-# 🧠 How to Train Your GPT
+# 🧠 Как обучить свою GPT
 
-> *A guide to building a world-class language model from absolute scratch. Taught like you're five. Built like you're an engineer.*
+> *Руководство по созданию языковой модели мирового уровня с абсолютного нуля. Объясняется как для пятилетних. Строится как для инженеров.*
 >
-> *I made this with the goal of learning something I didn't understand completely. Specifically the attention part. I use AI a lot to understand key concepts and verifying them.*
+> *Я создал это с целью изучить то, что не понимал до конца. В частности, механизм внимания. Я активно использую ИИ для понимания ключевых концепций и их проверки.*
 
 <p align="center">
-  <img src="https://img.shields.io/badge/chapters-12-blue" alt="12 chapters">
-  <img src="https://img.shields.io/badge/lines-7%2C500%2B-green" alt="7,500+ lines">
-  <img src="https://img.shields.io/badge/topics_explained-18-teal" alt="18 topic explainers">
-  <img src="https://img.shields.io/badge/code%20commented-100%25-brightgreen" alt="100% commented">
-  <img src="https://img.shields.io/badge/prerequisite-python%20basics-orange" alt="Python basics only">
-  <img src="https://img.shields.io/badge/architecture-LLaMA%203%20style-purple" alt="LLaMA 3 style">
-  <img src="https://img.shields.io/badge/purpose-learning%20only-lightgrey" alt="Learning only">
+  <img src="https://img.shields.io/badge/chapters-12-blue" alt="12 глав">
+  <img src="https://img.shields.io/badge/lines-7%2C500%2B-green" alt="7 500+ строк">
+  <img src="https://img.shields.io/badge/topics_explained-18-teal" alt="18 объяснений тем">
+  <img src="https://img.shields.io/badge/code%20commented-100%25-brightgreen" alt="100% с комментариями">
+  <img src="https://img.shields.io/badge/prerequisite-python%20basics-orange" alt="Только основы Python">
+  <img src="https://img.shields.io/badge/architecture-LLaMA%203%20style-purple" alt="Стиль LLaMA 3">
+  <img src="https://img.shields.io/badge/purpose-learning%20only-lightgrey" alt="Только для обучения">
   <a href="https://colab.research.google.com/github/raiyanyahya/how-to-train-your-gpt/blob/master/notebooks/colab_train.ipynb">
-    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab" height="25">
+    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Открыть в Colab" height="25">
   </a>
 </p>
 
 ---
 
-## 📖 What Is This?
+## 📖 Что это такое?
 
-This is a **12-chapter, 7,500+ line interactive textbook** that teaches you how to build, train and run a modern language model from absolute scratch. The same family of architecture behind ChatGPT, Claude, LLaMA and Mistral.
+Это **интерактивный учебник из 12 глав и 7 500+ строк**, который учит вас создавать, обучать и запускать современную языковую модель с абсолютного нуля. То же семейство архитектур, что лежит в основе ChatGPT, Claude, LLaMA и Mistral.
 
-Alongside the chapters there are **18 standalone topic explainers** covering every technique in depth. RoPE, attention, RMSNorm, SwiGLU, KV cache, AdamW, mixed precision and more. Plus two narrative walkthroughs that trace a single sentence through the entire model step by step. Each file follows the same style: child language, no jargon, a code example you can run.
+Вместе с главами есть **18 отдельных объяснений тем**, глубоко раскрывающих каждую технику. RoPE, внимание, RMSNorm, SwiGLU, KV-кэш, AdamW, смешанная точность и многое другое. Плюс два повествовательных обзора, которые пошагово прослеживают одно предложение через всю модель. Каждый файл следует одному стилю: детский язык, никакого жаргона, пример кода, который можно запустить.
 
-You won't just read about Transformers. You'll **write every line yourself**: tokenizer, embeddings, attention, training loop, inference engine. Every single line annotated to explain **what** it does and **why** it's there.
+Вы не просто прочитаете о Трансформерах. Вы **напишете каждую строку сами**: токенизатор, эмбеддинги, внимание, цикл обучения, движок вывода. Каждая строка прокомментирована, чтобы объяснить **что** она делает и **зачем** она нужна.
 
 ---
 
-## 🤔 Why This Exists
+## 🤔 Зачем это существует
 
-Most ML tutorials fall into one of two traps:
+Большинство руководств по ML попадают в одну из двух ловушек:
 
-| ❌ Too Shallow | ❌ Too Academic | ✅ This Guide |
+| ❌ Слишком поверхностно | ❌ Слишком академично | ✅ Это руководство |
 |---|---|---|
-| `model = GPT().fit(data)` | 40-page papers, dense notation | 5-year-old analogies → full working code |
-| You learn to call APIs | Assumes PhD in ML | Zero ML experience required |
-| No understanding of internals | No worked examples | Every line annotated with WHAT & WHY |
+| `model = GPT().fit(data)` | 40-страничные статьи, плотные обозначения | Аналогии для 5-летних → полностью рабочий код |
+| Вы учитесь вызывать API | Предполагается PhD по ML | Опыт ML не требуется |
+| Нет понимания внутренностей | Нет рабочих примеров | Каждая строка прокомментирована: ЧТО и ЗАЧЕМ |
 
-**The goal:** After finishing, you won't just know that attention "works". You'll understand the variance argument behind `1/√d_k`. How RoPE captures relative position through rotation. Why pre-norm beats post-norm for deep networks. And exactly where every gradient flows during backpropagation.
+**Цель:** После завершения вы не просто будете знать, что внимание «работает». Вы поймёте аргумент дисперсии за `1/√d_k`. Как RoPE захватывает относительную позицию через вращение. Почему пре-нормализация лучше пост-нормализации для глубоких сетей. И точно куда течёт каждый градиент во время обратного распространения.
 
 ---
 
-## 👥 Who Is This For?
+## 👥 Для кого это
 
-| 🧑‍💻 You Are... | 📚 You Need... |
+| 🧑‍💻 Вы... | 📚 Вам нужно... |
 |---|---|
-| A Python developer curious about how ChatGPT actually works | Basic Python (functions, classes, lists). No ML experience |
-| A student who wants to deeply understand Transformers | Willingness to read ~3,500 lines of commented code |
-| An engineer evaluating LLM architectures | Understanding of tradeoffs (RoPE vs learned, RMSNorm vs LayerNorm) |
-| Someone who got lost at "attention" in other tutorials | Party analogy + worked numeric example with real numbers |
+| Python-разработчик, которому интересно, как на самом деле работает ChatGPT | Основы Python (функции, классы, списки). Опыт ML не нужен |
+| Студент, который хочет глубоко понять Трансформеры | Готовность прочитать ~3 500 строк кода с комментариями |
+| Инженер, оценивающий архитектуры LLM | Понимание компромиссов (RoPE против обучаемых, RMSNorm против LayerNorm) |
+| Тот, кто запутался в «внимании» в других руководствах | Аналогия с вечеринкой + рабочий числовой пример с реальными числами |
 
-**🔧 Prerequisites:** Python basics (variables, functions, classes, `pip install`). That's it. No calculus, no linear algebra, no PyTorch experience required. We teach those as we go.
+**🔧 Предварительные требования:** Основы Python (переменные, функции, классы, `pip install`). Всё. Никакого матанализа, линейной алгебры или опыта работы с PyTorch не требуется. Мы изучаем это по ходу.
 
 ---
 
-## 🗺️ Chapters
+## 🗺️ Главы
 
-| Chapter | What You'll Learn |
+| Глава | Что вы узнаете |
 |---|---|
-| **[0: Overview](chapters/00_overview.md)** | What is a GPT? The big picture |
-| **[1: Setup](chapters/01_setup.md)** | Install tools, GPU vs CPU, venv, PyTorch basics |
-| **[2: Tokenization](chapters/02_tokenization.md)** | BPE walkthrough: how "unbelievably" becomes tokens |
-| **[3: Embeddings](chapters/03_embeddings.md)** | How numbers become meaning. king − man + woman = queen |
-| **[4: Positional Encoding](chapters/04_positional_encoding.md)** | RoPE: why LLaMA rotates vectors, not adds numbers |
-| **[5: Attention](chapters/05_attention.md)** | ⭐ THE CORE. Q,K,V, scaling, causal mask, 8-step walkthrough |
-| **[6: Transformer Block](chapters/06_transformer_block.md)** | RMSNorm, SwiGLU, residuals, pre-norm vs post-norm |
-| **[7: Complete GPT Model](chapters/07_gpt_model.md)** | 151M parameter model (with SwiGLU), weight tying, logits explained |
-| **[8: Training Pipeline](chapters/08_training.md)** | Cross-entropy, backprop, AdamW, cosine warmup, mixed precision |
-| **[9: Inference](chapters/09_inference.md)** | KV cache, temperature, top-k/p, beam search, repetition penalty |
-| **[10: Full Script](chapters/10_full_script.md)** | Runnable `main.py`: everything in one file |
-| **[11: Glossary](chapters/11_glossary.md)** | Architecture provenance table, parameter breakdown |
+| **[0: Обзор](chapters/00_overview.md)** | Что такое GPT? Общая картина |
+| **[1: Настройка](chapters/01_setup.md)** | Установка инструментов, GPU против CPU, venv, основы PyTorch |
+| **[2: Токенизация](chapters/02_tokenization.md)** | Прохождение BPE: как «невероятно» становится токенами |
+| **[3: Эмбеддинги](chapters/03_embeddings.md)** | Как числа становятся смыслом. король − мужчина + женщина = королева |
+| **[4: Позиционное кодирование](chapters/04_positional_encoding.md)** | RoPE: почему LLaMA вращает векторы, а не добавляет числа |
+| **[5: Внимание](chapters/05_attention.md)** | ⭐ ОСНОВА. Q,K,V, масштабирование, каузальная маска, 8-шаговое прохождение |
+| **[6: Блок трансформера](chapters/06_transformer_block.md)** | RMSNorm, SwiGLU, остаточные связи, пре-норм против пост-норм |
+| **[7: Полная модель GPT](chapters/07_gpt_model.md)** | Модель на 151 млн параметров (с SwiGLU), связывание весов, объяснение логитов |
+| **[8: Конвейер обучения](chapters/08_training.md)** | Кросс-энтропия, обратное распространение, AdamW, косинусный разогрев, смешанная точность |
+| **[9: Вывод](chapters/09_inference.md)** | KV-кэш, температура, top-k/p, поиск по лучу, штраф за повторения |
+| **[10: Полный скрипт](chapters/10_full_script.md)** | Запускаемый `main.py`: всё в одном файле |
+| **[11: Глоссарий](chapters/11_glossary.md)** | Таблица происхождения архитектуры, разбивка параметров |
 
-> ⭐ **Start with [Chapter 0](chapters/00_overview.md) and read sequentially.** Each builds on the previous.
+> ⭐ **Начните с [Главы 0](chapters/00_overview.md) и читайте последовательно.** Каждая строится на предыдущей.
 
 ---
 
-## 🏗️ What You'll Build
+## 🏗️ Что вы построите
 
-| 🧩 Component | 📝 Lines | 💡 What You'll Understand |
+| 🧩 Компонент | 📝 Строк | 💡 Что вы поймёте |
 |---|---|---|
-| **BPE Tokenizer** | ~60 | How GPT-4 splits "unbelievably" → "un" + "believ" + "ably" |
-| **Embeddings** | ~30 | How "cat" and "dog" end up near each other in 768D space |
-| **RoPE** | ~70 | Why LLaMA rotates vectors instead of adding position numbers |
-| **Multi-Head Attention** | ~120 | The exact 8-step computation behind every modern LLM |
-| **Transformer Block** | ~50 | Why residual connections are the "gradient highway" |
-| **Full GPT Model** | ~200 | 151M parameter model with SwiGLU, weight tying and pre-norm |
-| **Training Pipeline** | ~250 | AdamW, cosine warmup, mixed precision, gradient accumulation |
-| **Inference Engine** | ~80 | KV cache, temperature, top-k/p, beam search |
+| **BPE Токенизатор** | ~60 | Как GPT-4 разбивает «невероятно» → «не» + «веро» + «ятно» |
+| **Эмбеддинги** | ~30 | Как «кот» и «собака» оказываются рядом в 768-мерном пространстве |
+| **RoPE** | ~70 | Почему LLaMA вращает векторы вместо добавления чисел позиции |
+| **Многоголовое внимание** | ~120 | Точный 8-шаговый расчёт за каждой современной LLM |
+| **Блок трансформера** | ~50 | Почему остаточные связи — это «магистраль градиентов» |
+| **Полная модель GPT** | ~200 | Модель на 151 млн параметров с SwiGLU, связыванием весов и пре-норм |
+| **Конвейер обучения** | ~250 | AdamW, косинусный разогрев, смешанная точность, накопление градиентов |
+| **Движок вывода** | ~80 | KV-кэш, температура, top-k/p, поиск по лучу |
 
-> 💎 **~860 lines of core model code, ~2,600 lines of explanation and diagrams**
+> 💎 **~860 строк кода основной модели, ~2 600 строк объяснений и диаграмм**
 
 ---
 
-## 🏛️ Architecture
+## 🏛️ Архитектура
 
-This guide implements the **latest publicly-documented** decoder-only Transformer:
+Это руководство реализует **последнюю общедоступную документированную** архитектуру декодер-трансформера:
 
-| 🧬 Technique | 📦 Source Model | ⚡ Why It Matters |
+| 🧬 Техника | 📦 Исходная модель | ⚡ Почему это важно |
 |---|---|---|
-| **RoPE** | LLaMA, Mistral, Qwen | Relative position without learned parameters |
-| **RMSNorm** | LLaMA, Mistral, Gemma | 15% faster than LayerNorm, equally effective |
-| **SwiGLU** | PaLM, LLaMA, Gemini | Learns which information to pass or block |
-| **Pre-Norm** | GPT-3, all modern | Stable training at 100+ layers |
-| **AdamW** | GPT-3+ | Better generalization than vanilla Adam |
-| **BPE** | GPT-2/3/4 | Handles any text. Even unseen words and emoji |
-| **Weight Tying** | GPT-2/3 | Saves 30% parameters, improves training signal |
-| **Mixed Precision** | All production LLMs | 2× speed, half memory, same quality |
+| **RoPE** | LLaMA, Mistral, Qwen | Относительная позиция без обучаемых параметров |
+| **RMSNorm** | LLaMA, Mistral, Gemma | На 15% быстрее LayerNorm, одинаково эффективно |
+| **SwiGLU** | PaLM, LLaMA, Gemini | Учится, какую информацию пропустить или заблокировать |
+| **Пре-норм** | GPT-3, все современные | Стабильное обучение на 100+ слоях |
+| **AdamW** | GPT-3+ | Лучшая генерализация, чем обычный Adam |
+| **BPE** | GPT-2/3/4 | Обрабатывает любой текст. Даже невиданные слова и эмодзи |
+| **Связывание весов** | GPT-2/3 | Экономит 30% параметров, улучшает сигнал обучения |
+| **Смешанная точность** | Все продакшн LLM | В 2 раза быстрее, половина памяти, то же качество |
 
-> ℹ️ GPT-4 and Claude architectures are proprietary/undisclosed. This teaches the best publicly-confirmed architecture: what LLaMA 3, Mistral and Qwen 2.5 use.
+> ℹ️ Архитектуры GPT-4 и Claude являются собственными/нераскрытыми. Это учит лучшей подтверждённой публично архитектуре: что используют LLaMA 3, Mistral и Qwen 2.5.
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Быстрый старт
 
 ```bash
-# 1. Clone
+# 1. Клонируйте
 git clone https://github.com/raiyanyahya/how-to-train-your-gpt.git
 cd how-to-train-your-gpt
 
-# 2. Create environment
+# 2. Создайте окружение
 python -m venv gpt_env
 source gpt_env/bin/activate          # Mac/Linux
 # gpt_env\Scripts\activate           # Windows
 
-# 3. Install dependencies (CPU version. For GPU see below)
+# 3. Установите зависимости (CPU версия. Для GPU см. ниже)
 pip install torch tiktoken datasets numpy matplotlib --index-url https://download.pytorch.org/whl/cpu
 
-# Or use the requirements file
+# Или используйте файл требований
 pip install -r requirements.txt
 
-# 4. Verify GPU (optional but recommended)
+# 4. Проверьте GPU (опционально, но рекомендуется)
 python -c "import torch; print(f'CUDA: {torch.cuda.is_available()}')"
 
-# 5. Start reading!
+# 5. Начните читать!
 open chapters/00_overview.md
 ```
 
-Run the training script:
+Запустите скрипт обучения:
 
 ```bash
 python main.py
 ```
 
-This uses the tiny config (d_model=256, 4 layers) by default. Training takes a few minutes on CPU. For the GPT-2 scale config (151M params, 768 dims, 12 layers), edit the config in main.py and uncomment the larger configuration.
+По умолчанию используется крошечная конфигурация (d_model=256, 4 слоя). Обучение занимает несколько минут на CPU. Для конфигурации масштаба GPT-2 (151 млн параметров, 768 измерений, 12 слоёв), отредактируйте конфигурацию в main.py и раскомментируйте большую конфигурацию.
 
-> 💻 The default config uses a tiny model (d_model=256, 4 layers, 17M params) that runs in minutes on CPU. For the full GPT-2 scale (151M params, 768 dims, 12 layers), edit the config in `main.py` and uncomment the larger configuration. You'll need a GPU for that one.
+> 💻 Конфигурация по умолчанию использует крошечную модель (d_model=256, 4 слоя, 17 млн параметров), которая запускается за минуты на CPU. Для полного масштаба GPT-2 (151 млн параметров, 768 измерений, 12 слоёв), отредактируйте конфигурацию в `main.py` и раскомментируйте большую конфигурацию. Вам понадобится GPU для этого.
 
 ---
 
-## 📓 Jupyter Notebooks
+## 📓 Jupyter ноутбуки
 
-Alongside the textbook, each chapter has a companion notebook you can run live. These strip away the explanations and give you pure, clean code that executes from top to bottom. If the textbook teaches you why, the notebooks let you see it happen.
+Вместе с учебником каждая глава имеет сопутствующий ноутбук, который можно запустить вживую. Они убирают объяснения и дают чистый, аккуратный код, который выполняется сверху вниз. Если учебник учит вас почему, ноутбуки позволяют увидеть это в действии.
 
-We're going to run this whole project on a very small dataset so you can watch training happen in minutes rather than weeks. Every notebook is self-contained. Open it, run all cells and you'll see the model learn in real time.
+Мы собираемся запустить весь этот проект на очень маленьком наборе данных, чтобы вы могли наблюдать за обучением за минуты, а не недели. Каждый ноутбук самодостаточен. Откройте его, запустите все ячейки, и вы увидите, как модель учится в реальном времени.
 
 ```bash
-# Install everything you need
+# Установите всё, что вам нужно
 pip install jupyter tiktoken torch numpy datasets matplotlib --index-url https://download.pytorch.org/whl/cpu
 
-# Start with chapter 2 (tokenization)
+# Начните с главы 2 (токенизация)
 jupyter notebook notebooks/02_tokenization.ipynb
 ```
 
-Notebooks live in the `notebooks/` directory, one per chapter. Open any of them and hit **Cell → Run All**.
+Ноутбуки находятся в директории `notebooks/`, по одному на главу. Откройте любой из них и нажмите **Cell → Run All**.
 
 ---
 
-## 📚 Topic Explainers
+## 📚 Объяснения тем
 
-Each concept in this guide has a dedicated deep dive inside `explanations and examples WIP/`. These are written in the simplest possible language. No jargon. No formulas before analogies. Every explainer covers what, where, why, when and how with a code example you can run.
+Каждая концепция в этом руководстве имеет отдельное глубокое погружение внутри `explanations and examples WIP/`. Они написаны максимально простым языком. Никакого жаргона. Никаких формул до аналогий. Каждое объяснение охватывает что, где, почему, когда и как с примером кода, который можно запустить.
 
-The last two files are narrative walkthroughs. A Token's Journey follows one sentence through the entire model. The Complete Story covers every component across 22 parts. Read these after the chapters to see how everything connects.
+Последние два файла — повествовательные обзоры. Путешествие токена следует за одним предложением через всю модель. Полная история охватывает каждый компонент на протяжении 22 частей. Прочитайте их после глав, чтобы увидеть, как всё соединяется.
 
-| Topic | File | What It Covers |
+| Тема | Файл | Что охватывает |
 |---|---|---|
-| RoPE | [rope.md](explanations%20and%20examples%20WIP/rope.md) | How word order is encoded through rotation |
-| Attention | [attention.md](explanations%20and%20examples%20WIP/attention.md) | Step by step with a 3-token worked example |
-| BPE Tokenization | [bpe_tokenization.md](explanations%20and%20examples%20WIP/bpe_tokenization.md) | How text becomes tokens |
-| Embeddings | [embeddings.md](explanations%20and%20examples%20WIP/embeddings.md) | How numbers become meaning |
-| RMSNorm | [rmsnorm.md](explanations%20and%20examples%20WIP/rmsnorm.md) | Simpler faster normalization |
-| SwiGLU | [swiglu.md](explanations%20and%20examples%20WIP/swiglu.md) | The gated activation that beat ReLU |
-| Causal Masking | [causal_masking.md](explanations%20and%20examples%20WIP/causal_masking.md) | No peeking at the future |
-| Residual Connections | [residual_connections.md](explanations%20and%20examples%20WIP/residual_connections.md) | The gradient highway |
-| KV Cache | [kv_cache.md](explanations%20and%20examples%20WIP/kv_cache.md) | Making generation fast |
-| Sampling | [sampling.md](explanations%20and%20examples%20WIP/sampling.md) | Temperature, top-k, top-p |
-| Mixed Precision | [mixed_precision.md](explanations%20and%20examples%20WIP/mixed_precision.md) | Speed without sacrifice |
-| AdamW | [adamw.md](explanations%20and%20examples%20WIP/adamw.md) | The optimizer that trains LLMs |
-| Weight Tying | [weight_tying.md](explanations%20and%20examples%20WIP/weight_tying.md) | Two jobs one matrix |
-| Gradient Clipping | [gradient_clipping.md](explanations%20and%20examples%20WIP/gradient_clipping.md) | Preventing training explosions |
-| Cosine Warmup | [cosine_warmup.md](explanations%20and%20examples%20WIP/cosine_warmup.md) | The learning rate schedule |
-| Pre-Norm | [pre_norm.md](explanations%20and%20examples%20WIP/pre_norm.md) | Where to normalize |
-| 📖 **A Token's Journey** | [a_tokens_journey.md](explanations%20and%20examples%20WIP/a_tokens_journey.md) | Follow one sentence through every layer |
-| 📖 **The Complete Story** | [the_complete_story.md](explanations%20and%20examples%20WIP/the_complete_story.md) | The full narrative: 22 parts, 7800 words |
+| RoPE | [rope.md](explanations%20and%20examples%20WIP/rope.md) | Как порядок слов кодируется через вращение |
+| Внимание | [attention.md](explanations%20and%20examples%20WIP/attention.md) | Пошагово с рабочим примером на 3 токена |
+| BPE Токенизация | [bpe_tokenization.md](explanations%20and%20examples%20WIP/bpe_tokenization.md) | Как текст становится токенами |
+| Эмбеддинги | [embeddings.md](explanations%20and%20examples%20WIP/embeddings.md) | Как числа становятся смыслом |
+| RMSNorm | [rmsnorm.md](explanations%20and%20examples%20WIP/rmsnorm.md) | Более простая и быстрая нормализация |
+| SwiGLU | [swiglu.md](explanations%20and%20examples%20WIP/swiglu.md) | Активация с затвором, которая победила ReLU |
+| Каузальное маскирование | [causal_masking.md](explanations%20and%20examples%20WIP/causal_masking.md) | Не подглядывать в будущее |
+| Остаточные связи | [residual_connections.md](explanations%20and%20examples%20WIP/residual_connections.md) | Магистраль градиентов |
+| KV Кэш | [kv_cache.md](explanations%20and%20examples%20WIP/kv_cache.md) | Делаем генерацию быстрой |
+| Сэмплирование | [sampling.md](explanations%20and%20examples%20WIP/sampling.md) | Температура, top-k, top-p |
+| Смешанная точность | [mixed_precision.md](explanations%20and%20examples%20WIP/mixed_precision.md) | Скорость без жертв |
+| AdamW | [adamw.md](explanations%20and%20examples%20WIP/adamw.md) | Оптимизатор, который обучает LLM |
+| Связывание весов | [weight_tying.md](explanations%20and%20examples%20WIP/weight_tying.md) | Две работы, одна матрица |
+| Обрезка градиентов | [gradient_clipping.md](explanations%20and%20examples%20WIP/gradient_clipping.md) | Предотвращение взрывов при обучении |
+| Косинусный разогрев | [cosine_warmup.md](explanations%20and%20examples%20WIP/cosine_warmup.md) | Расписание скорости обучения |
+| Пре-норм | [pre_norm.md](explanations%20and%20examples%20WIP/pre_norm.md) | Где нормализовать |
+| 📖 **Путешествие токена** | [a_tokens_journey.md](explanations%20and%20examples%20WIP/a_tokens_journey.md) | Следуйте за одним предложением через каждый слой |
+| 📖 **Полная история** | [the_complete_story.md](explanations%20and%20examples%20WIP/the_complete_story.md) | Полное повествование: 22 части, 7800 слов |
 
 ---
 
-## 📖 How to Read
+## 📖 Как читать
 
-Each chapter follows the same **4-step structure**:
+Каждая глава следует одной и той же **4-шаговой структуре**:
 
-| Step | Format | Purpose |
+| Шаг | Формат | Цель |
 |---|---|---|
-| 1️⃣ **Analogy** | Plain English, 5-year-old level | Build intuition before math |
-| 2️⃣ **Worked Example** | Real numbers traced through | See exactly what happens |
-| 3️⃣ **Annotated Code** | Every line: `WHAT` + `WHY` | Understand every decision |
-| 4️⃣ **Diagram** | Mermaid flowchart or ASCII | Visualize data flow |
+| 1️⃣ **Аналогия** | Простой английский, уровень 5-летнего | Построить интуицию перед математикой |
+| 2️⃣ **Рабочий пример** | Реальные числа, прослеженные сквозь | Увидеть точно, что происходит |
+| 3️⃣ **Код с комментариями** | Каждая строка: `ЧТО` + `ЗАЧЕМ` | Понять каждое решение |
+| 4️⃣ **Диаграмма** | Блок-схема Mermaid или ASCII | Визуализировать поток данных |
 
-> 💡 **Tip:** Lost in the code? Jump back to the analogy. Confused by the math? Skip to the worked example.
+> 💡 **Совет:** Запутались в коде? Вернитесь к аналогии. Запутались в математике? Перейдите к рабочему примеру.
 
 ---
 
-## ✨ What Makes This Different
+## ✨ Что делает это другим
 
-| Aspect | 😴 Typical Tutorial | 🔥 This Guide |
+| Аспект | 😴 Типичное руководство | 🔥 Это руководство |
 |---|---|---|
-| **Explanation depth** | "Attention helps the model focus" | 8-step worked example with real numbers + variance math + causal mask visualization |
-| **Code comments** | Few or none | Every single line: WHAT + WHY |
-| **Modern techniques** | GPT-2 style (2019) | LLaMA 3 style (2024): RoPE, RMSNorm, SwiGLU |
-| **Training** | Uses HuggingFace Trainer | Full custom loop: AdamW, cosine warmup, mixed precision, grad accumulation |
-| **Inference** | `model.generate()` | Temperature, top-k, top-p, beam search, KV cache explained |
-| **Target audience** | ML engineers | Python developers with zero ML experience |
-| **Diagrams** | None | Mermaid flowcharts + ASCII matrices + worked examples |
+| **Глубина объяснения** | «Внимание помогает модели фокусироваться» | 8-шаговый рабочий пример с реальными числами + математика дисперсии + визуализация каузальной маски |
+| **Комментарии к коду** | Мало или нет | Каждая строка: ЧТО + ЗАЧЕМ |
+| **Современные техники** | Стиль GPT-2 (2019) | Стиль LLaMA 3 (2024): RoPE, RMSNorm, SwiGLU |
+| **Обучение** | Использует HuggingFace Trainer | Полный пользовательский цикл: AdamW, косинусный разогрев, смешанная точность, накопление градиентов |
+| **Вывод** | `model.generate()` | Температура, top-k, top-p, поиск по лучу, KV-кэш объяснены |
+| **Целевая аудитория** | ML-инженеры | Python-разработчики без опыта ML |
+| **Диаграммы** | Нет | Блок-схемы Mermaid + ASCII матрицы + рабочие примеры |
 
 ---
 
-## 🎯 Skills You'll Gain
+## 🎯 Навыки, которые вы получите
 
-- ✅ Explain how GPT-4 tokenizes text using BPE
-- ✅ Understand why RoPE, RMSNorm and SwiGLU replaced older techniques
-- ✅ Compute attention scores manually for a 3-token sentence
-- ✅ Debug a Transformer training loop (loss spikes, flat lines, overfitting)
-- ✅ Choose sampling parameters (temperature, top_k, top_p) for different use cases
-- ✅ Understand why KV caching is critical for production inference
-- ✅ Read modern ML papers with confidence (you'll recognize every component)
+- ✅ Объясните, как GPT-4 токенизирует текст используя BPE
+- ✅ Поймёте, почему RoPE, RMSNorm и SwiGLU заменили старые техники
+- ✅ Вычислите оценки внимания вручную для предложения из 3 токенов
+- ✅ Отладите цикл обучения Трансформера (скачки потерь, плоские линии, переобучение)
+- ✅ Выберите параметры сэмплирования (температура, top_k, top_p) для разных случаев использования
+- ✅ Поймёте, почему KV-кеширование критично для продакшн вывода
+- ✅ Будете читать современные ML-статьи с уверенностью (вы распознаете каждый компонент)
 
 ---
 
-## 🔮 Next Steps After Finishing
+## 🔮 Следующие шаги после завершения
 
-| Experiment | What to Change | What You'll Learn |
+| Эксперимент | Что изменить | Что вы узнаете |
 |---|---|---|
-| **Bigger model** | `num_layers` 12 → 24 | How depth improves reasoning |
-| **More data** | Add BookCorpus, C4, The Pile | Impact of data quality and diversity |
-| **Flash Attention** | Install `flash-attn`, swap attention | 2-5× faster training, longer context |
-| **Grouped Query Attention** | Set `num_kv_heads` < `num_heads` | How Mistral achieves efficient inference |
-| **LoRA fine-tuning** | Add low-rank adapter layers | Customize models without full retraining |
-| **RLHF / DPO** | Add reward model training | How ChatGPT learns to follow instructions |
-| **KV Cache** | Implement persistent key-value storage | 500× faster text generation |
-| **Mixture of Experts** | Route tokens through different FFN experts | How GPT-4 scales to trillions of params |
+| **Модель больше** | `num_layers` 12 → 24 | Как глубина улучшает рассуждение |
+| **Больше данных** | Добавить BookCorpus, C4, The Pile | Влияние качества и разнообразия данных |
+| **Flash Attention** | Установить `flash-attn`, заменить внимание | В 2-5 раз быстрее обучение, длиннее контекст |
+| **Группированный запрос внимания** | Установить `num_kv_heads` < `num_heads` | Как Mistral достигает эффективного вывода |
+| **LoRA дообучение** | Добавить адаптерные слои низкого ранга | Настройка моделей без полного переобучения |
+| **RLHF / DPO** | Добавить обучение модели вознаграждения | Как ChatGPT учится следовать инструкциям |
+| **KV Кэш** | Реализовать постоянное хранение ключ-значение | В 500 раз быстрее генерация текста |
+| **Смесь экспертов** | Маршрутизировать токены через разных FFN экспертов | Как GPT-4 масштабируется до триллионов параметров |
 
 ---
 
-## 📁 File Structure
+## 📁 Структура файлов
 
 ```
 📦 how-to-train-your-gpt/
-├── 📄 README.md              ← You are here
-├── 🐍 main.py                ← Runnable training script (clone & run)
-├── 📋 requirements.txt       ← One command install
+├── 📄 README.md              ← Вы здесь
+├── 🐍 main.py                ← Запускаемый скрипт обучения (клонируйте и запустите)
+├── 📋 requirements.txt       ← Установка одной командой
 ├── 📂 chapters/
-│   ├── 🏠 00_overview.md     ← What is a GPT? Why build one?
-│   ├── 🔧 01_setup.md        ← Install tools, GPU vs CPU, venv basics
-│   ├── 🔪 02_tokenization.md ← BPE walkthrough, EOS tokens, emoji handling
-│   ├── 🧊 03_embeddings.md   ← How numbers become meaning, king − man + woman
-│   ├── 📍 04_positional_encoding.md ← RoPE math, numerical example, theta
-│   ├── 🧠 05_attention.md    ← ⭐ THE CORE (713 lines). Q,K,V, scaling, causal mask
-│   ├── 🧱 06_transformer_block.md ← RMSNorm, SwiGLU, residuals, pre-norm vs post
-│   ├── 🏗️ 07_gpt_model.md    ← Complete 151M model, weight tying, logits explained
-│   ├── 🏋️ 08_training.md     ← Cross-entropy, backprop, AdamW, cosine warmup
-│   ├── 🎤 09_inference.md    ← KV cache, temperature, top-k/p, beam search
-│   ├── 📜 10_full_script.md  ← About main.py
-│   └── 📊 11_glossary.md     ← Architecture provenance, parameter breakdown
-├── 📓 notebooks/             ← Jupyter notebooks (one per chapter)
-│   ├── 🎨 attention_visualized.ipynb ← Watch attention weights in action
-│   └── ☁️ colab_train.ipynb  ← One-click cloud training on Colab
-├── 🎯 fine-tuning/           ← Fine-tuning guide: LoRA, QLoRA, data prep
+│   ├── 🏠 00_overview.md     ← Что такое GPT? Зачем строить?
+│   ├── 🔧 01_setup.md        ← Установка инструментов, GPU против CPU, основы venv
+│   ├── 🔪 02_tokenization.md ← Прохождение BPE, EOS токены, обработка эмодзи
+│   ├── 🧊 03_embeddings.md   ← Как числа становятся смыслом, король − мужчина + женщина
+│   ├── 📍 04_positional_encoding.md ← Математика RoPE, числовой пример, тета
+│   ├── 🧠 05_attention.md    ← ⭐ ОСНОВА (713 строк). Q,K,V, масштабирование, каузальная маска
+│   ├── 🧱 06_transformer_block.md ← RMSNorm, SwiGLU, остаточные связи, пре-норм против пост
+│   ├── 🏗️ 07_gpt_model.md    ← Полная модель на 151 млн, связывание весов, объяснение логитов
+│   ├── 🏋️ 08_training.md     ← Кросс-энтропия, обратное распространение, AdamW, косинусный разогрев
+│   ├── 🎤 09_inference.md    ← KV-кэш, температура, top-k/p, поиск по лучу
+│   ├── 📜 10_full_script.md  ← О main.py
+│   └── 📊 11_glossary.md     ← Происхождение архитектуры, разбивка параметров
+├── 📓 notebooks/             ← Jupyter ноутбуки (по одному на главу)
+│   ├── 🎨 attention_visualized.ipynb ← Наблюдайте веса внимания в действии
+│   └── ☁️ colab_train.ipynb  ← Облачное обучение в один клик на Colab
+├── 🎯 fine-tuning/           ← Руководство по дообучению: LoRA, QLoRA, подготовка данных
 │   ├── 📄 README.md
 │   ├── 01_what_is_finetuning.md
 │   ├── 02_lora_explained.md
@@ -284,16 +284,16 @@ Each chapter follows the same **4-step structure**:
 │   ├── 04_data_preparation.md
 │   ├── 05_full_finetune.md
 │   └── 📓 notebooks/lora_finetune.ipynb
-├── 📚 explanations and examples WIP/ ← Standalone explainers (18 topics)
+├── 📚 explanations and examples WIP/ ← Отдельные объяснения (18 тем)
 └── 📄 CONTRIBUTING.md
 ```
 
 ---
 
 <p align="center">
-  <i>"Any sufficiently explained technology is indistinguishable from magic. Until you build it yourself."</i>
+  <i>«Любая достаточно объяснённая технология неотличима от магии. Пока вы не построите её сами.»</i>
 </p>
 
 <p align="center">
-  <sub>⭐ Star this repo if you found it useful | 🐛 Issues & PRs welcome | 📖 Happy learning!</sub>
+  <sub>⭐ Добавьте звезду этому репозиторию, если нашли его полезным | 🐛 Issues и PR приветствуются | 📖 Приятного обучения!</sub>
 </p>
