@@ -1,105 +1,105 @@
-# Chapter 0 — What Even Is a GPT?
+# Глава 0 — Что вообще такое GPT?
 
-> *"If you can explain it to a 5-year-old, you truly understand it."*
+> *«Если вы можете объяснить это пятилетнему ребёнку, значит, вы действительно это понимаете.»*
 
 ---
 
-## The 5-Year-Old Analogy
+## Аналогия для пятилетних
 
-Imagine you have a friend who has read **every book in the library**. You start a sentence:
+Представьте, что у вас есть друг, который прочитал **каждую книгу в библиотеке**. Вы начинаете предложение:
 
-> *"The cat sat on the..."*
+> *«Кот сидел на...»*
 
-Your friend, having read so many books, **guesses** the next word: **"mat"**.
+Ваш друг, прочитав столько книг, **угадывает** следующее слово: **«ковре»**.
 
-That's all a GPT is: **a machine that reads tons of text and learns to guess the next word.**
+Вот и всё, чем является GPT: **машина, которая читает тонны текста и учится угадывать следующее слово.**
 
-| Concept | Analogy |
+| Концепция | Аналогия |
 |---|---|
-| **GPT** | A very smart "next-word guesser" |
-| **Training** | Reading millions of books to learn patterns |
-| **Text Generation** | Playing "finish my sentence" forever |
-| **Parameters** | The "memory" of all patterns it learned |
-| **Attention** | Knowing which words matter most |
+| **GPT** | Очень умный «угадыватель следующих слов» |
+| **Обучение** | Чтение миллионов книг для изучения паттернов |
+| **Генерация текста** | Бесконечная игра «закончи моё предложение» |
+| **Параметры** | «Память» всех выученных паттернов |
+| **Внимание** | Знание того, какие слова важнее всего |
 
 ```mermaid
 flowchart LR
-    A["Input Text: 'The cat sat on'"] --> B["GPT Model (The Smart Guesser)"]
-    B --> C["Next Word: 'the'"]
-    C --> D["Feed back: 'The cat sat on the'"]
+    A["Входной текст: 'Кот сидел на'"] --> B["Модель GPT (Умный угадыватель)"]
+    B --> C["Следующее слово: 'ковре'"]
+    C --> D["Обратная связь: 'Кот сидел на ковре'"]
     D --> B
-    D --> E["Next Word: 'mat'"]
+    D --> E["Следующее слово: 'мягком'"]
     style A fill:#1565c0,stroke:#0d47a1,color:#ffffff
     style B fill:#ef6c00,stroke:#bf360c,color:#ffffff
     style C fill:#2e7d32,stroke:#1b5e20,color:#ffffff
     style E fill:#2e7d32,stroke:#1b5e20,color:#ffffff
 ```
 
-## The Big Picture: Pipeline Overview
+## Общая картина: Обзор конвейера
 
 ```mermaid
 flowchart TD
-    A["Raw Text: 'Hello world'"] --> B["Tokenizer: Splits into pieces"]
-    B --> C["Token IDs: [15496, 995, ...]"]
-    C --> D["Embedding: Each ID -> vector"]
-    D --> E["Position Info: RoPE"]
-    E --> F["Transformer Blocks x N"]
-    F --> G["Output Head: Predict next token"]
-    G --> H["Sample next word"]
+    A["Исходный текст: 'Привет мир'"] --> B["Токенизатор: Разбивает на части"]
+    B --> C["ID токенов: [15496, 995, ...]"]
+    C --> D["Эмбеддинг: Каждый ID -> вектор"]
+    D --> E["Информация о позиции: RoPE"]
+    E --> F["Блоки трансформера x N"]
+    F --> G["Выходная голова: Предсказать следующий токен"]
+    G --> H["Сэмплировать следующее слово"]
 ```
 
-## Which Models Is This Based On?
+## На каких моделях это основано?
 
-**Short answer: This is a modern decoder-only Transformer (LLaMA-style), incorporating the best publicly-documented techniques from 2023-2025.**
+**Короткий ответ: Это современный декодер-трансформер (в стиле LLaMA), включающий лучшие общедоступные документированные техники 2023-2025 годов.**
 
-## What You Will Build
+## Что вы построите
 
-By the end of this guide, you will have built from scratch:
+К концу этого руководства вы создадите с нуля:
 
-| Component | What It Does | Chapter |
+| Компонент | Что делает | Глава |
 |---|---|---|
-| **Tokenizer** | Converts text ↔ numbers (BPE, same algorithm as GPT-4) | [2](02_tokenization.md) |
-| **Embeddings** | Gives each token a 768-dimensional "meaning vector" | [3](03_embeddings.md) |
-| **RoPE** | Teaches the model about word order using rotation | [4](04_positional_encoding.md) |
-| **Attention** | Lets words "look at" and "talk to" each other | [5](05_attention.md) |
-| **Transformer Block** | Complete thinking unit: attention + feed-forward + residuals | [6](06_transformer_block.md) |
-| **GPT Model** | Full 151M parameter language model (with SwiGLU) | [7](07_gpt_model.md) |
-| **Training Pipeline** | Data loading, AdamW, cosine schedule, mixed precision | [8](08_training.md) |
-| **Inference Engine** | Text generation with temperature, top-k, top-p, KV cache | [9](09_inference.md) |
-| **Complete Script** | One file that trains and generates — runnable start to finish | [10](10_full_script.md) |
+| **Токенизатор** | Преобразует текст ↔ числа (BPE, тот же алгоритм, что у GPT-4) | [2](02_tokenization.md) |
+| **Эмбеддинги** | Даёт каждому токену 768-мерный «вектор смысла» | [3](03_embeddings.md) |
+| **RoPE** | Учит модель порядку слов через вращение | [4](04_positional_encoding.md) |
+| **Внимание** | Позволяет словам «смотреть на» и «общаться с» друг другом | [5](05_attention.md) |
+| **Блок трансформера** | Полная мыслительная единица: внимание + feed-forward + остаточные связи | [6](06_transformer_block.md) |
+| **Модель GPT** | Полная языковая модель на 151 млн параметров (с SwiGLU) | [7](07_gpt_model.md) |
+| **Конвейер обучения** | Загрузка данных, AdamW, косинусное расписание, смешанная точность | [8](08_training.md) |
+| **Движок вывода** | Генерация текста с температурой, top-k, top-p, KV-кэшем | [9](09_inference.md) |
+| **Полный скрипт** | Один файл, который обучает и генерирует — запускается от начала до конца | [10](10_full_script.md) |
 
-**Who is this for?** Anyone who knows basic Python. No ML/AI experience needed. Every concept is explained with analogies first, then math, then annotated code.
+**Для кого это?** Любой, кто знает основы Python. Опыт ML/AI не нужен. Каждая концепция объясняется сначала через аналогии, затем математика, затем код с комментариями.
 
-**What you'll need:** A computer with Python 3.10+. A GPU is nice but not required — we provide a tiny config that runs on CPU.
+**Что вам понадобится:** Компьютер с Python 3.10+. GPU желателен, но не обязателен — мы предоставляем крошечную конфигурацию, которая работает на CPU.
 
-## Which Models Is This Based On? (Technical)
+## На каких моделях это основано? (Технически)
 
-| Technique | Source Model | Publicly Confirmed? |
+| Техника | Исходная модель | Публично подтверждено? |
 |---|---|---|
-| Decoder-only Transformer | GPT-2 (2019), GPT-3 (2020) | Yes |
-| Pre-Norm residual | GPT-3 (2020) | Yes |
-| BPE tokenizer | GPT-2/3/4 | Yes |
-| AdamW optimizer | GPT-3 (2020) | Yes |
-| Cosine LR + warmup | GPT-3 (2020) | Yes |
-| Weight tying | GPT-2/3 | Yes |
-| **RoPE** (position encoding) | **LLaMA, Mistral, Qwen** | Yes — NOT GPT-3/4 |
-| **RMSNorm** (normalization) | **LLaMA, Mistral, Gemma** | Yes — NOT GPT-3/4 |
-| **SwiGLU** (activation) | **PaLM, LLaMA, Gemini** | Yes — NOT GPT-3 |
-| Mixed precision (bfloat16) | All modern models | Yes |
+| Декодер-трансформер | GPT-2 (2019), GPT-3 (2020) | Да |
+| Пре-норм остаточная | GPT-3 (2020) | Да |
+| BPE токенизатор | GPT-2/3/4 | Да |
+| Оптимизатор AdamW | GPT-3 (2020) | Да |
+| Косинусная LR + разогрев | GPT-3 (2020) | Да |
+| Связывание весов | GPT-2/3 | Да |
+| **RoPE** (позиционное кодирование) | **LLaMA, Mistral, Qwen** | Да — НЕ GPT-3/4 |
+| **RMSNorm** (нормализация) | **LLaMA, Mistral, Gemma** | Да — НЕ GPT-3/4 |
+| **SwiGLU** (активация) | **PaLM, LLaMA, Gemini** | Да — НЕ GPT-3 |
+| Смешанная точность (bfloat16) | Все современные модели | Да |
 
-**What about GPT-4 and Claude?** Their architectures are **proprietary and undisclosed**. We know GPT-4 is a Transformer, but not which positional encoding, normalization, or activation it uses. Claude's architecture is entirely secret.
+**А как насчёт GPT-4 и Claude?** Их архитектуры являются **собственными и нераскрытыми**. Мы знаем, что GPT-4 — это трансформер, но не знаем, какое позиционное кодирование, нормализацию или активацию он использует. Архитектура Claude полностью секретна.
 
-**What this guide teaches:** The most advanced **publicly documented** architecture — essentially what **LLaMA 3, Mistral, Qwen 2.5, and Gemma** use. This is the architecture behind the best open-source models and represents the state of the art that we actually have confirmed documentation for.
+**Чему учит это руководство:** Самой продвинутой **общедоступной документированной** архитектуре — по сути тому, что используют **LLaMA 3, Mistral, Qwen 2.5 и Gemma**. Это архитектура, лежащая в основе лучших моделей с открытым исходным кодом, и представляет собой современное состояние искусства, которое у нас действительно есть подтверждённая документация для.
 
-**What makes a model "world-class"?**
+**Что делает модель «мирового класса»?**
 
-1. **Scale** — billions of parameters trained on trillions of tokens
-2. **Architecture** — the modern Transformer (our focus)
-3. **Data Quality** — clean, diverse, well-filtered text
-4. **Training Tricks** — mixed precision, gradient clipping, LR schedules
+1. **Масштаб** — миллиарды параметров, обученные на триллионах токенов
+2. **Архитектура** — современный трансформер (наш фокус)
+3. **Качество данных** — чистый, разнообразный, хорошо отфильтрованный текст
+4. **Трюки обучения** — смешанная точность, обрезка градиентов, расписания LR
 
-> We'll build a tiny version using the **same publicly-documented techniques** as the best open-source models.
+> Мы построим крошечную версию, используя **те же общедоступные документированные техники**, что и лучшие модели с открытым исходным кодом.
 
 ---
 
-**Next:** [Chapter 1 — Setup & Tooling](01_setup.md)
+**Далее:** [Глава 1 — Настройка и инструменты](01_setup.md)
