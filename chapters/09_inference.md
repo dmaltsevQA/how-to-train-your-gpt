@@ -1,226 +1,226 @@
-# Chapter 9 — Inference: Making It Talk
+# Глава 9 — Инференс: Заставляем её говорить
 
-## How Generation Is Different from Training
+## Чем генерация отличается от обучения
 
-| Aspect | Training | Inference (Generation) |
+| Аспект | Обучение | Инференс (Генерация) |
 |---|---|---|
-| **Goal** | Learn to predict next token correctly | Actually generate new text |
-| **Input** | Full sequence with target | Prompt only (no target) |
-| **Teacher forcing** | Yes — show correct answer | No — model generates its own future |
-| **Forward pass** | One pass for whole sequence | One pass PER new token |
-| **Speed** | Fast (batch parallel) | Slow (sequential token-by-token) |
-| **Causal mask** | Prevents seeing future tokens | Future tokens don't exist yet |
-| **Dropout** | Active (for regularization) | Disabled (for deterministic output) |
-| **Gradient** | Yes (backward pass) | No (no learning happening) |
+| **Цель** | Научиться правильно предсказывать следующий токен | Фактически генерировать новый текст |
+| **Вход** | Полная последовательность с целевым токеном | Только промпт (без целевого токена) |
+| **Teacher forcing** | Да — показываем правильный ответ | Нет — модель генерирует своё будущее |
+| **Forward pass** | Один проход для всей последовательности | Один проход НА КАЖДЫЙ новый токен |
+| **Скорость** | Быстро (параллелизм батчей) | Медленно (последовательно токен за токеном) |
+| **Каузальная маска** | Предотвращает видение будущих токенов | Будущих токенов ещё не существует |
+| **Dropout** | Активен (для регуляризации) | Отключён (для детерминированного вывода) |
+| **Градиент** | Да (backward pass) | Нет (обучения не происходит) |
 
-## The Naive Generation Loop
+## Наивный цикл генерации
 
-Our simplest implementation (loops over all tokens every step):
+Наша простейшая реализация (цикл по всем токенам каждый шаг):
 
 ```python
 for _ in range(max_new_tokens):
-    # Recompute the ENTIRE sequence every time!  ← wasteful!
-    logits, _ = model(input_ids)           # Process ALL tokens
-    next_token = sample(logits[:, -1, :])  # Only use LAST prediction
+    # Пересчитываем ВСЮ последовательность каждый раз!  ← расточительно!
+    logits, _ = model(input_ids)           # Обрабатываем ВСЕ токены
+    next_token = sample(logits[:, -1, :])  # Используем только ПОСЛЕДНЕЕ предсказание
     input_ids = torch.cat([input_ids, next_token], dim=1)
 ```
 
-**Problem:** Token 500 has already been processed 499 times by the time we add token 501!
+**Проблема:** Токен 500 уже был обработан 499 раз к моменту добавления токена 501!
 
-## KV Cache — The Biggest Speed-Up
+## KV Cache — Самое большое ускорение
 
-### The Key Insight
+### Ключевая идея
 
-During autoregressive generation, previously computed Keys and Values don't change. Token 0's K and V are the same whether we're predicting token 1 or token 500.
+Во время авторегрессионной генерации ранее вычисленные Keys и Values не меняются. K и V токена 0 одинаковы, предсказываем ли мы токен 1 или токен 500.
 
-**Without KV Cache:** Recompute K and V for ALL tokens every step.  
-**With KV Cache:** Compute K,V for NEW token only. Append to cache. Reuse old ones.
+**Без KV Cache:** Пересчитывать K и V для ВСЕХ токенов каждый шаг.  
+**С KV Cache:** Вычислять K,V только для НОВОГО токена. Добавлять в кэш. Повторно использовать старые.
 
 ```
-Step 1: Process "The"           → Store K["The"], V["The"] in cache
-Step 2: Process "cat"           → Reuse K,V for "The", compute K,V for "cat"
-Step 3: Process "sat"           → Reuse K,V for "The","cat", compute for "sat"
+Шаг 1: Обработать "The"           → Сохранить K["The"], V["The"] в кэше
+Шаг 2: Обработать "cat"           → Повторно использовать K,V для "The", вычислить K,V для "cat"
+Шаг 3: Обработать "sat"           → Повторно использовать K,V для "The","cat", вычислить для "sat"
 ...
-Step 500: Process "mat"         → Reuse K,V for 499 tokens, compute 1 new
+Шаг 500: Обработать "mat"         → Повторно использовать K,V для 499 токенов, вычислить 1 новый
 ```
 
-### Speed Improvement
+### Улучшение скорости
 
-| Sequence Length | Without KV Cache | With KV Cache | Speedup |
+| Длина последовательности | Без KV Cache | С KV Cache | Ускорение |
 |---|---|---|---|
-| 100 | 5,050 ops | 100 ops | 50× |
-| 500 | 125,250 ops | 500 ops | 250× |
-| 1000 | 500,500 ops | 1000 ops | 500× |
-| 4096 | 8.3M ops | 4096 ops | **2048×** |
+| 100 | 5 050 ops | 100 ops | 50× |
+| 500 | 125 250 ops | 500 ops | 250× |
+| 1000 | 500 500 ops | 1000 ops | 500× |
+| 4096 | 8,3M ops | 4096 ops | **2048×** |
 
-The longer your generation, the more KV cache matters!
+Чем длиннее ваша генерация, тем больше важен KV cache!
 
-### Memory Cost
+### Стоимость памяти
 
-KV cache stores `2 * num_layers * num_heads * seq_len * head_dim` floats:
+KV cache хранит `2 * num_layers * num_heads * seq_len * head_dim` чисел с плавающей точкой:
 
-For GPT-2 small generating 1000 tokens:
+Для GPT-2 small, генерирующей 1000 токенов:
 ```
-2 × 12 × 12 × 1000 × 64 = 18,432,000 floats
-= 18.4M × 4 bytes (float32) = 73.7 MB
-= 18.4M × 2 bytes (bfloat16) = 36.8 MB
-```
-
-Manageable for small models, but for GPT-3 (96 layers, 96 heads) × 4096 tokens:
-```
-2 × 96 × 96 × 4096 × 128 = 9.66 BILLION floats = 38.6 GB!
+2 × 12 × 12 × 1000 × 64 = 18 432 000 float
+= 18,4M × 4 байта (float32) = 73,7 МБ
+= 18,4M × 2 байта (bfloat16) = 36,8 МБ
 ```
 
-This is why long-context inference needs enormous GPU memory or memory-efficient KV cache techniques.
+Управляемо для малых моделей, но для GPT-3 (96 слоёв, 96 голов) × 4096 токенов:
+```
+2 × 96 × 96 × 4096 × 128 = 9,66 МИЛЛИАРДОВ float = 38,6 ГБ!
+```
 
-### KV Cache Implementation Concept
+Вот почему инференс с длинным контекстом требует огромной памяти GPU или энергоэффективных техник KV cache.
+
+### Концепция реализации KV Cache
 
 ```python
-# Simplified KV cache (conceptual — not full implementation)
+# Упрощённый KV cache (концептуально — не полная реализация)
 class GPTWithKVCache(GPT):
     def generate_with_cache(self, input_ids, max_new_tokens):
-        # Prefill: process prompt, store K,V
-        kv_cache = []  # List of (K, V) tuples per layer
+        # Prefill: обработать промпт, сохранить K,V
+        kv_cache = []  # Список кортежей (K, V) на слой
         
-        # First forward: process full prompt
+        # Первый forward: обработать полный промпт
         logits, new_kv = self.forward_with_cache(input_ids, kv_cache=None)
-        kv_cache = new_kv  # Store for reuse
+        kv_cache = new_kv  # Сохранить для повторного использования
         
         for _ in range(max_new_tokens):
             next_token = sample(logits[:, -1, :])
-            # Forward only the NEW token, reuse cached K,V
+            # Forward только для НОВОГО токена, повторно использовать кэшированные K,V
             logits, new_kv = self.forward_with_cache(
-                next_token.unsqueeze(1),  # Only 1 new token!
+                next_token.unsqueeze(1),  # Только 1 новый токен!
                 kv_cache=kv_cache
             )
-            kv_cache = new_kv  # Append new K,V to cache
+            kv_cache = new_kv  # Добавить новые K,V в кэш
             input_ids = torch.cat([input_ids, next_token], dim=1)
 ```
 
-## Sampling Strategies — How to Pick the Next Token
+## Стратегии сэмплирования — Как выбрать следующий токен
 
-### Greedy Sampling (temperature = 0)
+### Жадное сэмплирование (temperature = 0)
 
-Always pick the single MOST likely token.
+Всегда выбирать единственный НАИБОЛЕЕ вероятный токен.
 
 ```
-Prompt: "The cat sat on the"
+Промпт: "The cat sat on the"
 Logits: [the: 9.2,  a: 8.1,  my: 3.2,  their: 1.1, ...]
-                                ↑ always pick this
-Result: "The cat sat on the mat. The cat sat on the mat. The cat..."  ← repeats!
+                                ↑ всегда выбираем это
+Результат: "The cat sat on the mat. The cat sat on the mat. The cat..."  ← повторяет!
 ```
 
-**Problem:** Deterministic → same prompt always gives same output. Tends to repeat.
+**Проблема:** Детерминировано → одинаковый промпт всегда даёт одинаковый вывод. Склонно к повторам.
 
-### Temperature Sampling
+### Сэмплирование с температурой
 
-Scale logits before softmax. Lower temperature = sharper distribution (more confident picks). Higher = flatter (more random).
+Масштабировать logits перед softmax. Более низкая температура = более резкое распределение (более уверенные выборы). Более высокая = более плоское (более случайно).
 
 ```python
-# Temperature effect on a toy distribution:
-logits = [2.0, 1.0, 0.5, 0.1]  # 4 possible tokens
+# Влияние температуры на игрушечное распределение:
+logits = [2.0, 1.0, 0.5, 0.1]  # 4 возможных токена
 
-# T = 0.5 (cold — confident):
+# T = 0.5 (холодно — уверенно):
 scaled = [2.0/0.5, 1.0/0.5, 0.5/0.5, 0.1/0.5]  # → [4.0, 2.0, 1.0, 0.2]
 probs  = softmax([4.0, 2.0, 1.0, 0.2])          # → [0.86, 0.12, 0.02, 0.00]
-# Token 0 has 86% chance — very confident!
+# Токен 0 имеет 86% шанса — очень уверенно!
 
-# T = 1.0 (standard):
+# T = 1.0 (стандартно):
 probs = softmax([2.0, 1.0, 0.5, 0.1])           # → [0.56, 0.21, 0.13, 0.10]
-# Token 0 = 56% — balanced distribution
+# Токен 0 = 56% — сбалансированное распределение
 
-# T = 2.0 (hot — creative):
+# T = 2.0 (горячо — креативно):
 scaled = [2.0/2.0, 1.0/2.0, 0.5/2.0, 0.1/2.0]  # → [1.0, 0.5, 0.25, 0.05]
 probs  = softmax([1.0, 0.5, 0.25, 0.05])         # → [0.36, 0.22, 0.22, 0.20]
-# Flatter — token 0 only 36%, tokens 2 and 3 are competitive
+# Более плоское — токен 0 только 36%, токены 2 и 3 конкурентоспособны
 ```
 
-**Same prompt, different temperatures:**
+**Одинаковый промпт, разные температуры:**
 
 ```
-T=0.2 (focused):  "The capital of France is Paris, which is located in the Île-de-France region."
-T=0.8 (balanced): "The capital of France is Paris, a city known for its art, cuisine, and the Eiffel Tower."
-T=1.5 (creative): "The capital of France is Paris, where baguettes dream of becoming croissants under moonlight."
+T=0.2 (сфокусировано):  "Столица Франции — Париж, расположенный в регионе Иль-де-Франс."
+T=0.8 (сбалансированно): "Столица Франции — Париж, город, известный своим искусством, кухней и Эйфелевой башней."
+T=1.5 (креативно): "Столица Франции — Париж, где багеты мечтают стать круассанами под лунным светом."
 ```
 
-### Top-K Sampling
+### Top-K сэмплирование
 
-Only consider the K most likely tokens. Everything else → probability 0.
-
-```
-K=50: Only top 50 tokens. Good default — filters obvious nonsense.
-K=10: Aggressive filter. Tends to be repetitive but never nonsensical.
-K=1:  Same as greedy (always pick #1).
-```
-
-### Top-P (Nucleus) Sampling
-
-Only consider the SMALLEST set of tokens whose cumulative probability exceeds P.
+Рассматривать только K наиболее вероятных токенов. Всё остальное → вероятность 0.
 
 ```
-Tokens sorted by probability: [0.45, 0.22, 0.13, 0.08, 0.05, 0.03, 0.02, 0.01, 0.01]
+K=50: Только топ-50 токенов. Хорошее значение по умолчанию — фильтрует очевидный мусор.
+K=10: Агрессивный фильтр. Склонно к повторам, но никогда не бессмысленно.
+K=1:  То же самое, что жадное (всегда выбирать №1).
+```
+
+### Top-P (Nucleus) сэмплирование
+
+Рассматривать только НАИМЕНЬШЕЕ множество токенов, чья совокупная вероятность превышает P.
+
+```
+Токены, отсортированные по вероятности: [0.45, 0.22, 0.13, 0.08, 0.05, 0.03, 0.02, 0.01, 0.01]
 
 Top-P = 0.9:
-  Cumulative: 0.45+0.22+0.13+0.08+0.05 = 0.93 > 0.9
-  Keep first 5 tokens. Drop the rest.
+  Совокупная: 0.45+0.22+0.13+0.08+0.05 = 0.93 > 0.9
+  Оставить первые 5 токенов. Остальные отбросить.
 
 Top-P = 0.5:
-  Cumulative: 0.45+0.22 = 0.67 > 0.5
-  Keep first 2 tokens.
+  Совокупная: 0.45+0.22 = 0.67 > 0.5
+  Оставить первые 2 токена.
 ```
 
-**Why Top-P over Top-K?** Top-P adapts to the model's confidence:
-- If model is very sure: keeps few tokens (sharp distribution)
-- If model is uncertain: keeps many tokens (flat distribution)
+**Почему Top-P вместо Top-K?** Top-P адаптируется к уверенности модели:
+- Если модель очень уверена: оставляет мало токенов (резкое распределение)
+- Если модель не уверена: оставляет много токенов (плоское распределение)
 
-Top-K always keeps exactly K tokens regardless of confidence.
+Top-K всегда оставляет ровно K токенов независимо от уверенности.
 
-### Beam Search
+### Beam Search (Поиск по лучам)
 
-Instead of picking one token at a time, maintain multiple "beams" (candidate sequences):
+Вместо выбора одного токена за раз поддерживать несколько «лучей» (кандидатных последовательностей):
 
 ```
-Beam width = 3:
+Ширина луча = 3:
 
-Step 1: "The" → 3 best next tokens: ["cat"(0.3), "dog"(0.2), "man"(0.1)]
-Step 2: "The cat" → 3 best continuations: ["sat"(0.4), "is"(0.2), "was"(0.15)]
-        "The dog" → 3 best: ["ran"(0.35), "is"(0.2), "barked"(0.1)]
-        "The man" → 3 best: ["walked"(0.3), "said"(0.25), "is"(0.1)]
-        Pick top 3 overall sequences:
+Шаг 1: "The" → 3 лучших следующих токена: ["cat"(0.3), "dog"(0.2), "man"(0.1)]
+Шаг 2: "The cat" → 3 лучших продолжения: ["sat"(0.4), "is"(0.2), "was"(0.15)]
+        "The dog" → 3 лучших: ["ran"(0.35), "is"(0.2), "barked"(0.1)]
+        "The man" → 3 лучших: ["walked"(0.3), "said"(0.25), "is"(0.1)]
+        Выбрать 3 лучших общих последовательности:
         "The cat sat" (0.3×0.4=0.12), "The dog ran" (0.2×0.35=0.07), ...
 ```
 
-**Beam search**: Higher quality output, but deterministic (same output every time) and slower. Often used for translation, not creative writing.
+**Beam search**: Более качественный вывод, но детерминированный (одинаковый вывод каждый раз) и медленнее. Часто используется для перевода, а не творческого письма.
 
-### Repetition Penalty
+### Штраф за повторения
 
-During generation, penalize tokens that have already appeared:
+Во время генерации штрафовать токены, которые уже появлялись:
 
 ```
-For each candidate token:
-  penalty = 1.0 if token NOT in recent history
-  penalty = 0.5 if token appeared once recently
-  penalty = 0.2 if token appeared multiple times
+Для каждого кандидата токена:
+  penalty = 1.0 если токен НЕ в недавней истории
+  penalty = 0.5 если токен появился однажды недавно
+  penalty = 0.2 если токен появился многократно недавно
 
 logits = logits * penalty
 ```
 
-This prevents the model from looping: `"I like cats. I like cats. I like cats..."`
+Это предотвращает зацикливание модели: `"I like cats. I like cats. I like cats..."`
 
-### Comparison Table
+### Сравнительная таблица
 
-| Strategy | Randomness | Quality | Speed | Use Case |
+| Стратегия | Случайность | Качество | Скорость | Вариант использования |
 |---|---|---|---|---|
-| **Greedy** (T=0) | None | Good for facts | Fast | Translation, code |
-| **Temperature** | Controllable | Varies | Fast | Creative writing |
-| **Top-K=50** | Low-moderate | Good default | Fast | General generation |
-| **Top-P=0.9** | Adaptive | Good default | Fast | Chat, conversation |
-| **Beam Search** | None | Best | 3-5× slower | Translation, summarization |
-| **T=0.7 + Top-P=0.9** | Moderate | Great | Fast | 🏆 Recommended default |
+| **Жадное** (T=0) | Нет | Хорошо для фактов | Быстро | Перевод, код |
+| **Температура** | Контролируемая | Варьируется | Быстро | Творческое письмо |
+| **Top-K=50** | Низко-умеренная | Хорошее по умолчанию | Быстро | Общая генерация |
+| **Top-P=0.9** | Адаптивная | Хорошее по умолчанию | Быстро | Чат, разговор |
+| **Beam Search** | Нет | Лучшее | 3-5× медленнее | Перевод, суммаризация |
+| **T=0.7 + Top-P=0.9** | Умеренная | Отличное | Быстро | 🏆 Рекомендуется по умолчанию |
 
-## Full Inference Code
+## Полный код инференса
 
-### Loading a Checkpoint
+### Загрузка контрольной точки
 
 ```python
 import torch
@@ -228,30 +228,30 @@ import torch
 
 def load_checkpoint(checkpoint_path: str, device: torch.device):
     """
-    WHAT: Load a trained GPT model from a saved checkpoint file.
-    WHY: After training, we save model state. To generate text,
-         we need to load this state back — weights, config, everything.
+    WHAT: Загрузить обученную модель GPT из сохранённого файла контрольной точки.
+    WHY: После обучения мы сохраняем состояние модели. Для генерации текста
+         нам нужно загрузить это состояние обратно — веса, конфигурацию, всё.
     """
-    # WHAT: Load the checkpoint dictionary from disk
-    # WHY: map_location ensures it loads to the right device (CPU/GPU)
+    # WHAT: Загрузить словарь контрольной точки с диска
+    # WHY: map_location гарантирует загрузку на правильное устройство (CPU/GPU)
     checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
-    # WHAT: Recreate the model from the saved config
+    # WHAT: Воссоздать модель из сохранённой конфигурации
     model = GPT(checkpoint["config"])
 
-    # WHAT: Load the trained weights into the model
-    # WHY: state_dict contains every parameter value learned during training
+    # WHAT: Загрузить обученные веса в модель
+    # WHY: state_dict содержит каждое значение параметра, изученное во время обучения
     model.load_state_dict(checkpoint["model_state_dict"])
 
-    model = model.to(device)  # Move to GPU
-    model.eval()              # Disable dropout for inference
+    model = model.to(device)  # Переместить на GPU
+    model.eval()              # Отключить dropout для инференса
 
-    print(f"Loaded model from step {checkpoint['step']}, "
-          f"loss: {checkpoint['loss']:.4f}")
+    print(f"Загружена модель из шага {checkpoint['step']}, "
+          f"потери: {checkpoint['loss']:.4f}")
     return model
 ```
 
-### Text Generation Wrapper
+### Обёртка для генерации текста
 
 ```python
 def generate_text(
@@ -265,22 +265,22 @@ def generate_text(
     device: torch.device = None,
 ):
     """
-    WHAT: Generate text from a prompt using a trained GPT model.
-    WHY: High-level interface — tokenize → generate → decode.
+    WHAT: Генерировать текст из промпта с использованием обученной модели GPT.
+    WHY: Интерфейс высокого уровня — токенизация → генерация → декодирование.
 
-    Parameter Guide:
-      temperature: 0.2 = factual, 0.8 = balanced, 1.5 = wild
-      top_k:       50 = standard, 10 = conservative, 0 = disabled
-      top_p:       0.9 = recommended, 0.5 = narrow, 1.0 = disabled
+    Руководство по параметрам:
+      temperature: 0.2 = фактологично, 0.8 = сбалансированно, 1.5 = дико
+      top_k:       50 = стандартно, 10 = консервативно, 0 = отключено
+      top_p:       0.9 = рекомендуется, 0.5 = узко, 1.0 = отключено
     """
     device = device or next(model.parameters()).device
 
-    # WHAT: Convert prompt string to token IDs
+    # WHAT: Преобразовать строку промпта в ID токенов
     input_ids = torch.tensor(
         [tokenizer.encode(prompt)], dtype=torch.long, device=device
     )
 
-    # WHAT: Run autoregressive generation
+    # WHAT: Запустить авторегрессионную генерацию
     output_ids = model.generate(
         input_ids=input_ids,
         max_new_tokens=max_new_tokens,
@@ -289,51 +289,51 @@ def generate_text(
         top_p=top_p,
     )
 
-    # WHAT: Convert generated token IDs back to string
+    # WHAT: Преобразовать сгенерированные ID токенов обратно в строку
     return tokenizer.decode(output_ids[0].tolist())
 ```
 
-### Interactive Generation Example
+### Пример интерактивной генерации
 
 ```python
-# Load the trained model
+# Загрузить обученную модель
 model = load_checkpoint("checkpoints/best_model.pt", device)
 
-# Test different generation strategies
+# Протестировать разные стратегии генерации
 prompts = [
-    "Once upon a time, in a land far away,",
-    "The secret to happiness is",
-    "If I could travel anywhere in the world, I would go to",
+    "Однажды, в далёкой стране,",
+    "Секрет счастья — это",
+    "Если бы я мог путешествовать куда угодно в мире, я бы отправился в",
 ]
 
 for prompt in prompts:
     print(f"\n{'='*60}")
-    print(f"Prompt: {prompt}")
+    print(f"Промпт: {prompt}")
     print(f"{'='*60}")
 
-    # Conservative — good for facts
+    # Консервативно — хорошо для фактов
     text = generate_text(
         model, tokenizer, prompt, temperature=0.3, top_k=20,
     )
-    print(f"\nConservative (T=0.3, K=20):")
+    print(f"\nКонсервативно (T=0.3, K=20):")
     print(f"  {text[:300]}")
 
-    # Balanced — good default
+    # Сбалансированно — хорошее значение по умолчанию
     text = generate_text(
         model, tokenizer, prompt, temperature=0.8, top_k=50, top_p=0.9,
     )
-    print(f"\nBalanced (T=0.8, K=50, P=0.9):")
+    print(f"\nСбалансированно (T=0.8, K=50, P=0.9):")
     print(f"  {text[:300]}")
 
-    # Creative — good for writing
+    # Креативно — хорошо для письма
     text = generate_text(
         model, tokenizer, prompt, temperature=1.3, top_k=100, top_p=0.95,
     )
-    print(f"\nCreative (T=1.3, K=100, P=0.95):")
+    print(f"\nКреативно (T=1.3, K=100, P=0.95):")
     print(f"  {text[:300]}")
 ```
 
 ---
 
-**Previous:** [Chapter 8 — Training](08_training.md)
-**Next:** [Chapter 10 — Full Script](10_full_script.md)
+**Предыдущая:** [Глава 8 — Обучение](08_training.md)  
+**Следующая:** [Глава 10 — Полный скрипт](10_full_script.md)
