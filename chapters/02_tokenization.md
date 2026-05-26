@@ -1,10 +1,10 @@
-# Chapter 2 — Tokenization: Turning Words into Numbers
+# Глава 2 — Токенизация: превращение слов в числа
 
-## The 5-Year-Old Analogy
+## Аналогия для пятилетних
 
-Computers can only understand **numbers**. They don't know what the letter "A" means — they know "65" (its ASCII code). So we need to convert text into numbers before feeding it to a neural network.
+Компьютеры понимают только **числа**. Они не знают, что означает буква «A» — они знают «65» (её код ASCII). Поэтому нам нужно преобразовать текст в числа перед подачей в нейронную сеть.
 
-The simplest idea: **assign every word a number**:
+Простейшая идея: **присвоить каждому слову число**:
 ```
 "cat"  ->  9246
 "sat"  ->  6734
@@ -13,11 +13,11 @@ The simplest idea: **assign every word a number**:
 "mat"  -> 16789
 ```
 
-But English has hundreds of thousands of words. Do we really need a number for "antidisestablishmentarianism"? And what about new words like "skibidi" that didn't exist when we built the vocabulary?
+Но в английском языке сотни тысяч слов. Нужно ли нам отдельное число для «antidisestablishmentarianism»? А что насчёт новых слов вроде «skibidi», которых не существовало, когда мы создавали словарь?
 
-## The Solution: Subword Tokenization (BPE)
+## Решение: пословная токенизация (BPE)
 
-Instead of whole words, we break text into **frequent subword pieces**:
+Вместо целых слов мы разбиваем текст на **частые подсловные части**:
 
 ```
 "unbelievably" -> "un" + "believ" + "ably"
@@ -27,86 +27,86 @@ Instead of whole words, we break text into **frequent subword pieces**:
 "GPT"          -> "G" + "P" + "T"
 ```
 
-This is **Byte Pair Encoding (BPE)** — the exact algorithm used by GPT-2, GPT-3, GPT-4, and most modern models.
+Это **Byte Pair Encoding (BPE)** — тот самый алгоритм, который используют GPT-2, GPT-3, GPT-4 и большинство современных моделей.
 
-### How BPE Works — Step by Step
+### Как работает BPE — шаг за шагом
 
-BPE starts with every character as its own "token," then repeatedly merges the most frequent pair:
+BPE начинается с того, что каждый символ является своим собственным «токеном», затем многократно объединяет наиболее частую пару:
 
-**Starting text:** `"low lower lowest"`
+**Исходный текст:** `"low lower lowest"`
 
 ```
-Step 0 (initial — each character is a token):
+Шаг 0 (начальный — каждый символ это токен):
 l o w _ l o w e r _ l o w e s t
 
-Step 1 (most frequent pair: 'l'+'o' -> 'lo'):
+Шаг 1 (наиболее частая пара: 'l'+'o' -> 'lo'):
 lo w _ lo w e r _ lo w e s t
 
-Step 2 (most frequent pair: 'lo'+'w' -> 'low'):
+Шаг 2 (наиболее частая пара: 'lo'+'w' -> 'low'):
 low _ low e r _ low e s t
 
-Step 3 (most frequent pair: 'e'+'s' -> 'es'):
+Шаг 3 (наиболее частая пара: 'e'+'s' -> 'es'):
 low _ low e r _ low es t
 
-Step 4 (most frequent pair: 'es'+'t' -> 'est'):
+Шаг 4 (наиболее частая пара: 'es'+'t' -> 'est'):
 low _ low e r _ low est
 
-Step 5 (most frequent pair: 'low'+'_' -> 'low_'):
+Шаг 5 (наиболее частая пара: 'low'+'_' -> 'low_'):
 low_ low e r _ low_ est
 ```
 
-After enough merges, we have a vocabulary like: `{l, o, w, e, r, s, t, _, lo, ow, low, er, es, est, low_}`
+После достаточного количества объединений у нас есть словарь вроде: `{l, o, w, e, r, s, t, _, lo, ow, low, er, es, est, low_}`
 
-Now new words can be represented using these pieces even if we've never seen them before:
+Теперь новые слова могут быть представлены с помощью этих частей, даже если мы никогда раньше их не видели:
 
 ```
-"lowest"  -> "low" + "est"     (both in vocabulary!)
-"slower"  -> "s" + "low" + "er" (never seen before, but works!)
+"lowest"  -> "low" + "est"     (оба есть в словаре!)
+"slower"  -> "s" + "low" + "er" (никогда не видели, но работает!)
 ```
 
-### Why BPE Beats Word-Level Tokenization
+### Почему BPE лучше пословной токенизации
 
-| Problem | Word-Level | BPE |
+| Проблема | Пословная | BPE |
 |---|---|---|
-| "running" vs "run" | Different tokens — no shared meaning | "runn" + "ing" — the model sees the connection |
-| New word: "rizz" | Unknown token → model fails | "r" + "i" + "z" + "z" → works with characters |
-| Vocabulary size | 500K+ (too many rare words) | 50K (balanced, efficient) |
-| Unicode/emoji handling | Often broken | Character-level fallback never fails |
+| "running" против "run" | Разные токены — нет общей связи | "runn" + "ing" — модель видит связь |
+| Новое слово: "rizz" | Неизвестный токен → модель ошибается | "r" + "i" + "z" + "z" → работает через символы |
+| Размер словаря | 500K+ (слишком много редких слов) | 50K (сбалансировано, эффективно) |
+| Обработка Unicode/emoji | Часто ломается | Резервный уровень символов никогда не ошибается |
 
-### What About Special Characters and Emojis?
+### Что насчёт специальных символов и эмодзи?
 
-BPE operates on **bytes**, not characters. This means it can tokenize ANYTHING that can be represented as bytes — emojis, Chinese characters, code, LaTeX, even binary data:
+BPE работает с **байтами**, а не символами. Это означает, что он может токенизировать ЛЮБОЕ, что можно представить как байты — эмодзи, китайские иероглифы, код, LaTeX, даже бинарные данные:
 
 ```
-"Hello 😊"  ->  ["Hello", " Ġ", "😊"]    (Ġ = space prefix in GPT tokenizer)
-"你好"       ->  tokenized via UTF-8 bytes
+"Hello 😊"  ->  ["Hello", " Ġ", "😊"]    (Ġ = префикс пробела в токенизаторе GPT)
+"你好"       ->  токенизируется через UTF-8 байты
 "def foo():"->  ["def", "Ġfoo", "()", ":"]
 ```
 
-### GPT Tokenizer Conventions
+### Соглашения токенизатора GPT
 
-| Token | Example | Meaning |
+| Токен | Пример | Значение |
 |---|---|---|
-| Normal tokens | `"cat"`, `"the"`, `"ing"` | Regular subword pieces |
-| Space-prefixed | `"Ġcat"`, `"Ġthe"` | Word starts after a space (Ġ is a special character) |
-| `<\|endoftext\|>` | EOS token | Marks end of a document — critical for training |
-| Capital letters | `"The"` vs `"the"` | Different tokens! Case matters |
+| Обычные токены | `"cat"`, `"the"`, `"ing"` | Обычные подсловные части |
+| С префиксом пробела | `"Ġcat"`, `"Ġthe"` | Слово начинается после пробела (Ġ — специальный символ) |
+| `<\|endoftext\|>` | Токен EOS | Отмечает конец документа — критично для обучения |
+| Заглавные буквы | `"The"` против `"the"` | Разные токены! Регистр имеет значение |
 
-### The EOS Token — Why It Matters
+### Токен EOS — почему это важно
 
-The `<|endoftext|>` (End Of Sequence) token is **critical** and often overlooked:
+Токен `<|endoftext|>` (End Of Sequence) **критичен** и часто упускается из виду:
 
 ```python
-# WITHOUT EOS — two documents get merged:
-doc1 = "The cat sat."     # tokens: [464, 3797, 3332, 13]
-doc2 = "The dog ran."     # tokens: [464, 3290, 3407, 13]
-# Result: [464, 3797, 3332, 13, 464, 3290, 3407, 13]
-# Model sees: "...sat. The dog ran." — thinks it's ONE document
-# Learns: "sat." is often followed by "The" — WRONG!
+# БЕЗ EOS — два документа сливаются:
+doc1 = "The cat sat."     # токены: [464, 3797, 3332, 13]
+doc2 = "The dog ran."     # токены: [464, 3290, 3407, 13]
+# Результат: [464, 3797, 3332, 13, 464, 3290, 3407, 13]
+# Модель видит: "...sat. The dog ran." — думает, что это ОДИН документ
+# Учится: "sat." часто сопровождается "The" — НЕПРАВИЛЬНО!
 
-# WITH EOS — documents are separated:
+# С EOS — документы разделены:
 tokens = [464, 3797, 3332, 13, EOS, 464, 3290, 3407, 13, EOS]
-# Model learns: EOS means "we're done here, next token is unrelated"
+# Модель учит: EOS означает «мы закончили здесь, следующий токен не связан»
 ```
 
 ## Tokenizer Code — Annotated
